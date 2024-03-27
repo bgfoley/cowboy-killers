@@ -45,11 +45,10 @@ contract Cowboy is Ownable, ERC404, ERC404UniswapV2Exempt{
         Ownable(msg.sender) 
         ERC404UniswapV2Exempt(UNISWAP_ROUTER)
     {
-        address initialMintRecipient = msg.sender;
         // Do not mint the ERC721s to the initial owner, as it's a waste of gas.
-        _setERC721TransferExempt(initialMintRecipient, true);
-        _mintERC20(initialMintRecipient, MAX_TOTAL_SUPPLY_ERC721 * units);
-    }
+        _setERC721TransferExempt(owner(), true);
+        _mintERC20(msg.sender, MAX_TOTAL_SUPPLY_ERC721 * units);
+}
 
     function setERC721TransferExempt(
         address account_,
