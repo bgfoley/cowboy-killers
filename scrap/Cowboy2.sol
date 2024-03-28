@@ -1,14 +1,15 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
+
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {DoubleEndedQueue} from "./lib/DoubleEndedQueue.sol";
-import {ERC404UniswapV2Exempt} from "./extensions/ERC404UniswapV2Exempt.sol";
 import {ERC404} from "./ERC404.sol"; 
 import {ERC721Events} from "./lib/ERC721Events.sol";
 import {ERC20Events} from "./lib/ERC20Events.sol";
 
-contract Cowboy is Ownable, ERC404, ERC404UniswapV2Exempt{
+
+contract Cowboy is Ownable, ERC404 {
     using DoubleEndedQueue for DoubleEndedQueue.Uint256Deque;
     // Mapping from token value to its respective queue
     mapping(uint256 => DoubleEndedQueue.Uint256Deque) private _storedERC721IdsByValue;
@@ -39,11 +40,10 @@ contract Cowboy is Ownable, ERC404, ERC404UniswapV2Exempt{
     uint8 private constant DECIMALS = 18;
     uint256 private constant MAX_TOTAL_SUPPLY_ERC721 = 600000;
     // Ensure this address is correct for your deployment network (e.g., Ethereum Mainnet, Rinkeby, etc.)
-    address private constant UNISWAP_ROUTER = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+
     constructor() 
         ERC404(NAME, SYMBOL, DECIMALS) 
         Ownable(msg.sender) 
-        ERC404UniswapV2Exempt(UNISWAP_ROUTER)
     {
         // Do not mint the ERC721s to the initial owner, as it's a waste of gas.
         _setERC721TransferExempt(owner(), true);
@@ -259,13 +259,10 @@ contract Cowboy is Ownable, ERC404, ERC404UniswapV2Exempt{
 
  
 
-        for (uint256 i = 0; i < tokensToRetrieveOrMint; ) {
+//        for (uint256 i = 0; i < tokensToRetrieveOrMint; ) {
  //           _retrieveOrMintERC721_(to_);
             loopToMint(to_, tokensToRetrieveOrMint);
-            unchecked {
-            ++i;
-            }
-        }
+        
         }  else if (isToERC721TransferExempt) {
         // Case 3) The sender is not ERC-721 transfer exempt, but the recipient is. Contract should attempt
         //         to withdraw and store ERC-721s from the sender, but the recipient should not
@@ -274,13 +271,8 @@ contract Cowboy is Ownable, ERC404, ERC404UniswapV2Exempt{
   
         uint256 tokensToWithdrawAndStore = (erc20BalanceOfSenderBefore / units) -
             (balanceOf[from_] / units);
-        for (uint256 i = 0; i < tokensToWithdrawAndStore; ) {
 
             loopToBurn(from_, tokensToWithdrawAndStore);
-            unchecked {
-            ++i;
-            }
-        }
         } else {
         // Case 4) Neither the sender nor the recipient are ERC-721 transfer exempt.
         // Strategy:

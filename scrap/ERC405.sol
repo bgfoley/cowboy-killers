@@ -8,11 +8,11 @@ import {DoubleEndedQueue} from "./lib/DoubleEndedQueue.sol";
 import {ERC721Events} from "./lib/ERC721Events.sol";
 import {ERC20Events} from "./lib/ERC20Events.sol";
 
-abstract contract ERC404 is IERC404 {
+abstract contract ERC405 is IERC404 {
   using DoubleEndedQueue for DoubleEndedQueue.Uint256Deque;
 
   /// @dev The queue of ERC-721 tokens stored in the contract.
-  DoubleEndedQueue.Uint256Deque private ERC721Ids_stored;
+  DoubleEndedQueue.Uint256Deque private _storedERC721Ids;
 
   /// @dev Token name
   string public name;
@@ -566,6 +566,7 @@ abstract contract ERC404 is IERC404 {
       uint256 tokensToRetrieveOrMint = (balanceOf[to_] / units) -
         (erc20BalanceOfReceiverBefore / units);
  
+// @todo this here is like loop to mint 
       for (uint256 i = 0; i < tokensToRetrieveOrMint; ) {
         _retrieveOrMintERC721(to_);
         unchecked {
@@ -577,6 +578,7 @@ abstract contract ERC404 is IERC404 {
       //         to withdraw and store ERC-721s from the sender, but the recipient should not
       //         receive ERC-721s from the bank/minted.
       // Only cares about whole number increments.
+// @todo this here is like loop to burn      
       uint256 tokensToWithdrawAndStore = (erc20BalanceOfSenderBefore / units) -
         (balanceOf[from_] / units);
       for (uint256 i = 0; i < tokensToWithdrawAndStore; ) {
