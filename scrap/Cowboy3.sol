@@ -22,7 +22,7 @@ contract Cowboy is Ownable, ERC404, ERC404UniswapV2Exempt {
     uint256[NUM_TOKEN_VALUES] public tokenValue = [
         MARLBORO_MEN, CARTONS, PACKS, LOOSIES];
 
-    // map unique token IDs by value
+    /// @dev native value of unique token ID
     mapping(uint256 => uint256) internal _valueOfId;      
 
     mapping(uint256 => string) internal _tokenValueURI;
@@ -130,14 +130,35 @@ contract Cowboy is Ownable, ERC404, ERC404UniswapV2Exempt {
         (erc20BalanceOfReceiverBefore / units);
 
         uint256[] memory _tokensToRetrieveOrMint = calculateTokens(tokensToRetrieveOrMint);
-        
-            for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
+
+        // Loop through each token value
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
             uint256 quantity = _tokensToRetrieveOrMint[i];
-            _retrieveOrMintERC721(to_);
+            uint256 tokenValue;
+
+            // Assign the correct token value based on the index
+            if (i == 0) {
+                tokenValue = MARLBORO_MEN;
+            } else if (i == 1) {
+                tokenValue = CARTONS;
+            } else if (i == 2) {
+                tokenValue = PACKS;
+            } else if (i == 3) {
+                tokenValue = LOOSIES;
+            } else {
+                // Handle unexpected index
+                revert("Invalid index");
             }
 
-
-        
+            // If quantity is zero, no need to call _retrieveOrMintERC721
+            if (quantity > 0) {
+                // Loop 'quantity' times for this token value
+                for (uint256 j = 0; j < quantity; j++) {
+                    // Call _retrieveOrMintERC721 for each quantity
+                    _retrieveOrMintERC721(to_, tokenValue);
+                }
+            }
+        }
         
         } else if (isToERC721TransferExempt) {
         // Case 3) The sender is not ERC-721 transfer exempt, but the recipient is. Contract should attempt
@@ -146,8 +167,8 @@ contract Cowboy is Ownable, ERC404, ERC404UniswapV2Exempt {
         // Only cares about whole number increments.
         uint256 tokensToWithdrawAndStore = (erc20BalanceOfSenderBefore / units) -
         (balanceOf[from_] / units);
-      
-        uint256[] memory _tokensToWithdrawAndStore = calculateTokens(tokensToWithdrawAndStore);
+///@todo add new function to loop through owned tokens
+        uint256[] memory _tokensToWithdrawAndStore = calculateTokensToWithdraw(tokensToWithdrawAndStore);
 
         for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
         uint256 quantity = _tokensToWithdrawAndStore[i];
@@ -211,6 +232,23 @@ contract Cowboy is Ownable, ERC404, ERC404UniswapV2Exempt {
 
     }
 
+    function _withdrawAndStoreERC721(address from_, uint256 tokenValue_) internal virtual {
+        if (from_ == address(0)) {
+        revert InvalidSender();
+        }
+
+        // Retrieve the latest token added to the owner's stack (LIFO).
+        uint256 id = _owned[from_][_owned[from_].length - 1];
+
+        // Transfer to 0x0.
+        // Does not handle ERC-721 exemptions.
+        _transferERC721(from_, address(0), id);
+
+        // Record the token in the contract's bank queue.
+        _storedERC721Ids.pushFront(id);
+    }
+
+/*
     function _retrieveOrMintERC721(address to_) internal override {
         if (to_ == address(0)) {
         revert InvalidRecipient();
@@ -246,7 +284,7 @@ contract Cowboy is Ownable, ERC404, ERC404UniswapV2Exempt {
         // Does not handle ERC-721 exemptions.
       //  _transferERC721(erc721Owner, to_, id);
     }
-
+*/
 
 /*
   // Adjusted _retrieveOrMintERC721 function to support minting batches
@@ -378,6 +416,65 @@ function calculateTokens(uint256 _units) internal pure returns (uint256[] memory
 
     return tokensToRetrieveOrMint;
     }
+}
+
+function calculateTokensToWithdraw(
+    address owner_, 
+    uint256 units_
+    ) internal pure returns (uint256[] memory) {
+        uint256[] memory tokensToWithdraw = new uint256[](NUM_TOKEN_VALUES);
+        uint256 remainingUnits = units_;
+    }
+
+
+function sortOwnedTokens(address owner) internal {
+    uint256 totalOwned = _owned[owner].length;
+    
+    // Step 1: Initialize temporary arrays
+    uint256[] memory marlboroMenTokens = new uint256[](totalOwned);
+    uint256[] memory cartonTokens = new uint256[](totalOwned);
+    uint256[] memory packTokens = new uint256[](totalOwned);
+    uint256[] memory loosieTokens = new uint256[](totalOwned);
+    
+    uint256 marlboroMenCount;
+    uint256 cartonCount;
+    uint256 packCount;
+    uint256 loosieCount;
+    
+    // Step 2: Group IDs by their value
+    for (uint256 i = 0; i < totalOwned; i++) {
+        uint256 tokenId = _owned[owner][i];
+        uint256 value = _valueOfId[tokenId];
+        
+        if (value == MARLBORO_MEN) {
+            marlboroMenTokens[marlboroMenCount++] = tokenId;
+        } else if (value == CARTONS) {
+            cartonTokens[cartonCount++] = tokenId;
+        } else if (value == PACKS) {
+            packTokens[packCount++] = tokenId;
+        } else if (value == LOOSIES) {
+            loosieTokens[loosieCount++] = tokenId;
+        }
+    }
+    
+    // Step 3: Concatenate the groups in descending order of their values
+    uint256[] memory sortedTokens = new uint256[](totalOwned);
+    uint256 index = 0;
+    for (uint256 i = 0; i < marlboroMenCount; i++) {
+        sortedTokens[index++] = marlboroMenTokens[i];
+    }
+    for (uint256 i = 0; i < cartonCount; i++) {
+        sortedTokens[index++] = cartonTokens[i];
+    }
+    for (uint256 i = 0; i < packCount; i++) {
+        sortedTokens[index++] = packTokens[i];
+    }
+    for (uint256 i = 0; i < loosieCount; i++) {
+        sortedTokens[index++] = loosieTokens[i];
+    }
+    
+    // Step 4: Update the owner's array
+    _owned[owner] = sortedTokens;
 }
 
 
