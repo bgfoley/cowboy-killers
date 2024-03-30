@@ -3,16 +3,15 @@ pragma solidity ^0.8.20;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {DoubleEndedQueue} from "./lib/DoubleEndedQueue.sol";
-import {ERC404UniswapV2Exempt} from "./extensions/ERC404UniswapV2Exempt.sol";
 import {ERC404} from "./ERC404.sol"; 
 import {ERC721Events} from "./lib/ERC721Events.sol";
 import {ERC20Events} from "./lib/ERC20Events.sol";
 
-contract Cowboy is Ownable, ERC404TV, ERC404UniswapV2Exempt {
+contract Cowboy is Ownable, ERC404 {
 
     using DoubleEndedQueue for DoubleEndedQueue.Uint256Deque;
     mapping(uint256 => DoubleEndedQueue.Uint256Deque) private _storedERC721sByValue;
-
+//@todo init these integers in constructor
     using Strings for uint256;
     ///@dev token values constant for efficiency
     uint256 private constant MARLBORO_MEN = 600;
@@ -22,8 +21,12 @@ contract Cowboy is Ownable, ERC404TV, ERC404UniswapV2Exempt {
     uint256 private constant NUM_TOKEN_VALUES = 4;
 
     ///@dev token values need to be in descending order for loopBurn logic to work
-    uint256[NUM_TOKEN_VALUES] public tokenValue = [
-        MARLBORO_MEN, CARTONS, PACKS, LOOSIES];
+    uint256[NUM_TOKEN_VALUES] public tokenValues = [
+        MARLBORO_MEN, 
+        CARTONS, 
+        PACKS, 
+        LOOSIES
+    ];
 
     /// @dev use IdsOwned index instead of _owned to sort by value
     mapping(address => mapping(uint256 => uint256[])) internal _idsOwned;
@@ -44,47 +47,43 @@ contract Cowboy is Ownable, ERC404TV, ERC404UniswapV2Exempt {
     )
         ERC404(name_, symbol_, decimals_)
         Ownable(initialOwner_)
-        ERC404UniswapV2Exempt(uniswapV2Router_)
     {
         // Do not mint the ERC721s to the initial owner, as it's a waste of gas.
         _setERC721TransferExempt(initialMintRecipient_, true);
+        _setERC721TransferExempt(uniswapV2Router_, true);
         _mintERC20(initialMintRecipient_, maxTotalSupplyERC721_ * units);
     }
 
-    function owned(
-        address owner_
-      ) public view override returns (
-        uint256[] memory
-        ) {
-        // Assuming tokenValue is accessible and contains the four distinct values
-        uint256 totalLength = 0;
+    function owned(address owner_) public view override returns (uint256[] memory) {
+    uint256 totalLength = 0;
 
-        // Calculate total length needed for the consolidated array
-        for (uint256 i = 0; i < tokenValue.length; i++) {
-            totalLength += _idsOwned[owner_][tokenValue[i]].length;
-        }
-
-        // Allocate memory for the consolidated array
-        uint256[] memory allIds = new uint256[](totalLength);
-
-        // Populate the consolidated array
-        uint256 currentIndex = 0;
-        for (uint256 i = 0; i < tokenValue.length; i++) {
-            uint256[] memory idsForValue = _idsOwned[owner_][tokenValue[i]];
-            for (uint256 j = 0; j < idsForValue.length; j++) {
-                allIds[currentIndex] = idsForValue[j];
-                currentIndex++;
-            }
-        }
-
-        return allIds;
+    // Pre-calculate total length for all token values
+    for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
+        totalLength += _idsOwned[owner_][tokenValues[i]].length;
     }
+
+    uint256[] memory allIds = new uint256[](totalLength);
+
+    uint256 currentIndex = 0;
+
+    // Iterate only once over tokenValues to populate allIds
+    for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
+        uint256[] memory idsForValue = _idsOwned[owner_][tokenValues[i]];
+
+        for (uint256 j = 0; j < idsForValue.length; j++) {
+            allIds[currentIndex++] = idsForValue[j];
+            // Directly increment currentIndex instead of using a separate statement
+        }
+    }
+
+    return allIds;
+}
 
     function getNominalBalances(address user) public view returns (uint256[] memory) {
         uint256[] memory balances = new uint256[](NUM_TOKEN_VALUES);
 
         for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
-            uint256 _tokenValue = tokenValue[i]; // Use the global constant array
+            uint256 _tokenValue = tokenValues[i]; // Use the global constant array
             balances[i] = _idsOwned[user][_tokenValue].length;
         }
 
@@ -102,16 +101,7 @@ contract Cowboy is Ownable, ERC404TV, ERC404UniswapV2Exempt {
     }
 
 
-/// @todo update to new mapping
-    function getERC721QueueLength(
-        uint256 tokenValue_
-      ) public view override returns (uint256) 
-        uint256 queue = _storedERC721sByValue[tokenValue_]
-      {
-        return queue.length();
-    }
 
-/// @todo update to new mapping
     function getERC721TokensInQueueByValue(
         uint256 tokenValue_,
         uint256 start_,
@@ -196,7 +186,7 @@ contract Cowboy is Ownable, ERC404TV, ERC404UniswapV2Exempt {
         delete getApproved[id_];
 
         uint256 value = _valueOfId[id_];
-        uint256[] ownedOfValue = _idsOwned[from_][value];
+        uint256[] storage ownedOfValue = _idsOwned[from_][value];
 
         uint256 updatedId = ownedOfValue[ownedOfValue.length - 1];
         if (updatedId != id_) {
@@ -217,7 +207,8 @@ contract Cowboy is Ownable, ERC404TV, ERC404UniswapV2Exempt {
         // Update owner of the token to the new owner.
         _setOwnerOf(id_, to_);
 
-        uint256[] ownedOfValueTo = _owned[to_][value]; 
+        uint256 value = _valueOfId[id_];
+        uint256[] storage ownedOfValueTo = _idsOwned[from_][value]; 
         
         // Push token onto the new owner's stack.
         ownedOfValueTo.push(id_);
@@ -261,31 +252,18 @@ contract Cowboy is Ownable, ERC404TV, ERC404UniswapV2Exempt {
 
         uint256[] memory _tokensToRetrieveOrMint = calculateTokens(tokensToRetrieveOrMint);
 
-        // Loop through each token value
+            // Loop through each token value
         for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
-            uint256 quantity = _tokensToRetrieveOrMint[i];
-            uint256 tokenValue;
+            uint256 quantity = _nftsToTransfer[i];
+            uint256 _tokenValue = tokenValues[i]; // Directly use the value from the array
 
-            // Assign the correct token value based on the index
-            if (i == 0) {
-                tokenValue = MARLBORO_MEN;
-            } else if (i == 1) {
-                tokenValue = CARTONS;
-            } else if (i == 2) {
-                tokenValue = PACKS;
-            } else if (i == 3) {
-                tokenValue = LOOSIES;
-            } else {
-                // Handle unexpected index
-                revert("Invalid index");
-            }
 
             // If quantity is zero, no need to call _retrieveOrMintERC721
             if (quantity > 0) {
                 // Loop 'quantity' times for this token value
                 for (uint256 j = 0; j < quantity; j++) {
                     // Call _retrieveOrMintERC721 for each quantity
-                    _retrieveOrMintERC721(to_, tokenValue);
+                    _retrieveOrMintERC721(to_, _tokenValue);
                 }
             }
         }
@@ -297,34 +275,20 @@ contract Cowboy is Ownable, ERC404TV, ERC404UniswapV2Exempt {
         // Only cares about whole number increments.
         uint256 tokensToWithdrawAndStore = (erc20BalanceOfSenderBefore / units) -
         (balanceOf[from_] / units);
-///@todo add new function to loop through owned tokens
-        uint256[] memory _tokensToWithdrawAndStore = calculateFromTokensOwned(from_, tokensToWithdrawAndStore);
+        /// add new function to loop through owned tokens
+        (uint256[] memory _tokensToWithdrawAndStore, ) = calculateFromTokensOwned(from_, tokensToWithdrawAndStore);
 
         // Loop through each token value
         for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
             uint256 quantity = _tokensToWithdrawAndStore[i];
-            uint256 tokenValue;
-
-            // Assign the correct token value based on the index
-            if (i == 0) {
-                tokenValue = MARLBORO_MEN;
-            } else if (i == 1) {
-                tokenValue = CARTONS;
-            } else if (i == 2) {
-                tokenValue = PACKS;
-            } else if (i == 3) {
-                tokenValue = LOOSIES;
-            } else {
-                // Handle unexpected index
-                revert("Invalid index");
-            }
+            uint256 _tokenValue = tokenValues[i]; 
 
             // If quantity is zero, no need to call _withdrawAndStore
             if (quantity > 0) {
                 // Loop 'quantity' times for this token value
                 for (uint256 j = 0; j < quantity; j++) {
                     // Call _retrieveOrMintERC721 for each quantity
-                    _withdrawAndStore(to_, tokenValue);
+                    _withdrawAndStoreERC721(to_, _tokenValue);
                 }
             }
         }
@@ -340,33 +304,19 @@ contract Cowboy is Ownable, ERC404TV, ERC404UniswapV2Exempt {
 
       // Whole tokens worth of ERC-20s get transferred as ERC-721s without any burning/minting.
       uint256 nftsToTransfer = value_ / units;
-      uint256[] memory _nftsToTransfer = calculateFromTokensOwned(from_, nftsToTransfer);  
+      (uint256[] memory _nftsToTransfer, ) = calculateFromTokensOwned(from_, nftsToTransfer);  
 
-      // Loop through each token value
+        // Loop through each token value
         for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
-            uint256 quantity = _tokensToWithdrawAndStore[i];
-            uint256 tokenValue;
-
-            // Assign the correct token value based on the index
-            if (i == 0) {
-                tokenValue = MARLBORO_MEN;
-            } else if (i == 1) {
-                tokenValue = CARTONS;
-            } else if (i == 2) {
-                tokenValue = PACKS;
-            } else if (i == 3) {
-                tokenValue = LOOSIES;
-            } else {
-                // Handle unexpected index
-                revert("Invalid index");
-            }
+            uint256 quantity = _nftsToTransfer[i];
+            uint256 _tokenValue = tokenValues[i]; 
 
             // If quantity is zero, no need to call _withdrawAndStore
             if (quantity > 0) {
                 // Loop 'quantity' times for this token value
                 for (uint256 j = 0; j < quantity; j++) {
                     // Call _retrieveOrMintERC721 for each quantity
-                    _withdrawAndStore(to_, tokenValue);
+                    _withdrawAndStoreERC721(to_, _tokenValue);
                 }
             }
         }
@@ -397,13 +347,13 @@ contract Cowboy is Ownable, ERC404TV, ERC404UniswapV2Exempt {
 
     }
 
-///@todo DONE - override to add tokenValue
+
     function _retrieveOrMintERC721(address to_, uint256 tokenValue_) internal override {
         if (to_ == address(0)) {
         revert InvalidRecipient();
         }
-
-        DoubleEndedQueue.Uint256Deque storage idsOfValue = storedERC721sByValue[tokenValue_];
+        uint256 id;
+        DoubleEndedQueue.Uint256Deque storage idsOfValue = _storedERC721sByValue[tokenValue_];
 
         if (!idsOfValue.empty()) {
         // If there are any tokens in the bank, use those first.
@@ -417,9 +367,8 @@ contract Cowboy is Ownable, ERC404TV, ERC404UniswapV2Exempt {
         if (minted == type(uint256).max) {
             revert MintLimitReached();
         }
-
-        id = ID_ENCODING_PREFIX + minted;
         }
+        id = ID_ENCODING_PREFIX + minted;
 
         address erc721Owner = _getOwnerOf(id);
 
@@ -439,27 +388,28 @@ contract Cowboy is Ownable, ERC404TV, ERC404UniswapV2Exempt {
         if (from_ == address(0)) {
         revert InvalidSender();
         }
-
+        
+        uint256[] memory ownedOfValue = _idsOwned[from_][tokenValue_];
         // Retrieve the latest token added to the owner's stack (LIFO).
-        uint256 id = _owned[from_][_owned[from_].length - 1];
+        uint256 updatedId = ownedOfValue[ownedOfValue.length - 1];
 
         // Transfer to 0x0.
         // Does not handle ERC-721 exemptions.
-        _transferERC721(from_, address(0), id);
+        _transferERC721(from_, address(0), updatedId);
 
-        uint256[] _storedERC721sOfValue = storedERC721sByValue[tokenValue_];
+        DoubleEndedQueue.Uint256Deque storage storedERC721sOfValue = _storedERC721sByValue[tokenValue_];
         // Record the token in the contract's bank queue.
-        _storedERC721sOfValue.pushFront(id);
+        storedERC721sOfValue.pushFront(updatedId);
     }
 
-    function calculateTokens(uint256 _units) internal pure returns (uint256[] memory) {
+    function calculateTokens(uint256 _units) internal view returns (uint256[] memory) {
         uint256[] memory tokensToRetrieveOrMint = new uint256[](NUM_TOKEN_VALUES);
         uint256 remainingUnits = _units;
 
         // Calculate the number of units to retrieve or mint for each token value
-        for (uint256 i = 0; i < tokenValue.length; i++) {
-            tokensToRetrieveOrMint[i] = remainingUnits / tokenValue[i];
-            remainingUnits %= tokenValue[i];
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
+            tokensToRetrieveOrMint[i] = remainingUnits / tokenValues[i];
+            remainingUnits %= tokenValues[i];
         }
 
         return tokensToRetrieveOrMint;
@@ -475,12 +425,12 @@ contract Cowboy is Ownable, ERC404TV, ERC404UniswapV2Exempt {
         uint256[] memory ownerBalances = getNominalBalances(owner_);
         bool canFulfillExactWithdrawal = true;
 
-        for (uint256 i = 0; i < tokenValue.length; i++) {
-            uint256 maxTokensPossible = remainingUnits / tokenValue[i];
+        for (uint256 i = 0; i < tokenValues.length; i++) {
+            uint256 maxTokensPossible = remainingUnits / tokenValues[i];
             uint256 tokensToActuallyWithdraw = (ownerBalances[i] < maxTokensPossible) ? ownerBalances[i] : maxTokensPossible;
             
             tokensToWithdraw[i] = tokensToActuallyWithdraw;
-            remainingUnits -= tokensToActuallyWithdraw * tokenValue[i];
+            remainingUnits -= tokensToActuallyWithdraw * tokenValues[i];
 
             if (remainingUnits == 0) break;
         }
@@ -501,113 +451,50 @@ contract Cowboy is Ownable, ERC404TV, ERC404UniswapV2Exempt {
         return (tokensToWithdraw, canFulfillExactWithdrawal);
     }
 
-/*
-    function _retrieveOrMintERC721(address to_) internal override {
-        if (to_ == address(0)) {
-        revert InvalidRecipient();
-        }
+    /// @notice Function to reinstate balance on exemption removal
+    function _reinstateERC721Balance(address target_) internal override {
+        uint256 _targetBalance = balanceOf[target_];
+        uint256[] memory _tokensToRetrieveOrMint = calculateTokens(_targetBalance);
 
-        uint256 id;
-
-        if (!_storedERC721Ids.empty()) {
-        // If there are any tokens in the bank, use those first.
-        // Pop off the end of the queue (FIFO).
-        id = _storedERC721Ids.popBack();
-        } else {
-        // Otherwise, mint a new token, should not be able to go over the total fractional supply.
-        ++minted;
-
-        // Reserve max uint256 for approvals
-        if (minted == type(uint256).max) {
-            revert MintLimitReached();
-        }
-
-        id = ID_ENCODING_PREFIX + minted;
-        }
-
-        address erc721Owner = _getOwnerOf(id);
-
-        // The token should not already belong to anyone besides 0x0 or this contract.
-        // If it does, something is wrong, as this should never happen.
-        if (erc721Owner != address(0)) {
-        revert AlreadyExists();
-        }
-
-        // Transfer the token to the recipient, either transferring from the contract's bank or minting.
-        // Does not handle ERC-721 exemptions.
-      //  _transferERC721(erc721Owner, to_, id);
-    }
-*/
-
-/*
-  // Adjusted _retrieveOrMintERC721 function to support minting batches
-    function retrieveOrMintERC721(address to_, uint256 value, uint256 quantity) internal {
-    if (to_ == address(0)) {
-        revert InvalidRecipient();
-    }
-
-    uint256[] memory ids;
-
-    if (getERC721QueueLength() == 0) {
-        // If there are any tokens in the bank, use those first.
-        // Pop off the end of the queue (FIFO).
-        // Get the length of the queue
-        uint256 queueLength = getERC721QueueLength();
-
-        // Calculate the starting index to fetch the tokens from
-        uint256 startIndex = queueLength > quantity ? queueLength - quantity : 0;
-
-        // Fetch the tokens from the queue
-        ids = getERC721TokensInQueue(startIndex, quantity);
-
-    } else {
-        ids = new uint256[](quantity);
-        for (uint256 i = 0; i < quantity; i++) {
-            // Otherwise, mint a new token, should not be able to go over the total fractional supply.
-            ++minted;
-
-            // Reserve max uint256 for approvals
-            if (minted == type(uint256).max) {
-                revert MintLimitReached();
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
+            if (_tokensToRetrieveOrMint[i] > 0) {
+                for (uint256 loops = 0; loops < _tokensToRetrieveOrMint[i]; loops++) {
+                    uint256 _tokenValue = tokenValues[i]; // Ensure _tokenValue is declared with its type
+                    // Transfer ERC721 balance in from pool
+                    _retrieveOrMintERC721(target_, _tokenValue);
+                }
             }
-
-            uint256 id = ID_ENCODING_PREFIX + minted;
-            ids[i] = id;
         }
     }
 
-    // Transfer the tokens to the recipient, either transferring from the contract's bank or minting.
-    batchTransferERC721(address(this), to_, ids);
-}
-*/
-/*
-function withdrawAndStoreERC721(
-    address from_,
-    uint256 _tokenValue,
-    uint256 quantity
-) internal virtual {
-    if (from_ == address(0)) {
-        revert InvalidSender();
+    /// less gas efficient method
+    function _clearERC721Balance(address target_) internal override {
+        uint256[] memory ownerBalances = getNominalBalances(target_);
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
+            if (ownerBalances[i] > 0) {
+                for (uint256 loops = 0; loops < ownerBalances[i]; loops++) {
+                    uint256 _tokenValue = tokenValues[i]; // Ensure _tokenValue is declared with its type
+                    _withdrawAndStoreERC721(target_, _tokenValue);
+                }
+            }
+        }
     }
 
-    for (uint256 i = 0; i < quantity; i++) {
-        // Retrieve the latest token added to the owner's stack (LIFO).
-        uint256 id = _owned[from_][_owned[from_].length - 1];
 
-        // Transfer to 0x0.
-        // Does not handle ERC-721 exemptions.
-        _transferERC721(from_, address(0), id);
-
-        // Record the token in the contract's bank queue.
-        _storedERC721Ids.pushFront(id);
-
-        // Emit Transfer event
-        emit ERC721Events.Transfer(from_, address(0), id);
+    function clearERC721Balance(address target_) private {
+        uint[] memory targetTokens = owned(target_);
+        for (uint256 i = 0; i < (targetTokens.length - 1); i++) {
+            uint256 tokenId = targetTokens[i];
+            uint256 _tokenValue = _valueOfId[tokenId];
+            _withdrawAndStoreERC721(target_, _tokenValue);
+        }
     }
+
 }
 
-*/
 /*
+
+
 function batchTransferERC721(
     address from_,
     address to_,
@@ -655,9 +542,6 @@ function batchTransferERC721(
         emit ERC721Events.Transfer(from_, to_, ids[i]);
     }
 }
-*/
-
-
 
 
 
@@ -711,5 +595,5 @@ function sortOwnedTokens(address owner) internal {
     _owned[owner] = sortedTokens;
 }
 
-
+*/
     

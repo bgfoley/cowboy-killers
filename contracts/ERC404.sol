@@ -8,6 +8,7 @@ import {DoubleEndedQueue} from "./lib/DoubleEndedQueue.sol";
 import {ERC721Events} from "./lib/ERC721Events.sol";
 import {ERC20Events} from "./lib/ERC20Events.sol";
 
+
 abstract contract ERC404 is IERC404 {
   using DoubleEndedQueue for DoubleEndedQueue.Uint256Deque;
 
@@ -130,6 +131,11 @@ abstract contract ERC404 is IERC404 {
   }
 
   function getERC721QueueLength() public view virtual returns (uint256) {
+    return _storedERC721Ids.length();
+  }
+
+  // additional argument for override function
+  function getERC721QueueLength(uint256 value) public view virtual returns (uint256) {
     return _storedERC721Ids.length();
   }
 
@@ -661,6 +667,42 @@ abstract contract ERC404 is IERC404 {
 
     _transferERC20WithERC721(address(0), to_, value_);
   }
+///@dev modified function to include tokenValue argument
+  function _retrieveOrMintERC721(address to_, uint256 tokenValue_) internal virtual {
+    if (to_ == address(0)) {
+      revert InvalidRecipient();
+    }
+
+    uint256 id;
+
+    if (!_storedERC721Ids.empty()) {
+      // If there are any tokens in the bank, use those first.
+      // Pop off the end of the queue (FIFO).
+      id = _storedERC721Ids.popBack();
+    } else {
+      // Otherwise, mint a new token, should not be able to go over the total fractional supply.
+      ++minted;
+
+      // Reserve max uint256 for approvals
+      if (minted == type(uint256).max) {
+        revert MintLimitReached();
+      }
+
+      id = ID_ENCODING_PREFIX + minted;
+    }
+
+    address erc721Owner = _getOwnerOf(id);
+
+    // The token should not already belong to anyone besides 0x0 or this contract.
+    // If it does, something is wrong, as this should never happen.
+    if (erc721Owner != address(0)) {
+      revert AlreadyExists();
+    }
+
+    // Transfer the token to the recipient, either transferring from the contract's bank or minting.
+    // Does not handle ERC-721 exemptions.
+    _transferERC721(erc721Owner, to_, id);
+  }
 
   /// @notice Internal function for ERC-721 minting and retrieval from the bank.
   /// @dev This function will allow minting of new ERC-721s up to the total fractional supply. It will
@@ -702,10 +744,28 @@ abstract contract ERC404 is IERC404 {
     _transferERC721(erc721Owner, to_, id);
   }
 
+
   /// @notice Internal function for ERC-721 deposits to bank (this contract).
   /// @dev This function will allow depositing of ERC-721s to the bank, which can be retrieved by future minters.
   // Does not handle ERC-721 exemptions.
   function _withdrawAndStoreERC721(address from_) internal virtual {
+    if (from_ == address(0)) {
+      revert InvalidSender();
+    }
+
+    // Retrieve the latest token added to the owner's stack (LIFO).
+    uint256 id = _owned[from_][_owned[from_].length - 1];
+
+    // Transfer to 0x0.
+    // Does not handle ERC-721 exemptions.
+    _transferERC721(from_, address(0), id);
+
+    // Record the token in the contract's bank queue.
+    _storedERC721Ids.pushFront(id);
+  }
+
+///@notice duplicate to add both arguments
+  function _withdrawAndStoreERC721(address from_, uint256 value_) internal virtual {
     if (from_ == address(0)) {
       revert InvalidSender();
     }
@@ -742,8 +802,10 @@ abstract contract ERC404 is IERC404 {
     _erc721TransferExempt[target_] = state_;
   }
 
+
+// Removed this function due to overcomplication with expectedERC721 Balance
   /// @notice Function to reinstate balance on exemption removal
-  function _reinstateERC721Balance(address target_) private {
+  function _reinstateERC721Balance(address target_) internal virtual {
     uint256 expectedERC721Balance = erc20BalanceOf(target_) / units;
     uint256 actualERC721Balance = erc721BalanceOf(target_);
 
@@ -756,8 +818,9 @@ abstract contract ERC404 is IERC404 {
     }
   }
 
+
   /// @notice Function to clear balance on exemption inclusion
-  function _clearERC721Balance(address target_) private {
+  function _clearERC721Balance(address target_) internal virtual {
     uint256 erc721Balance = erc721BalanceOf(target_);
 
     for (uint256 i = 0; i < erc721Balance; ) {
