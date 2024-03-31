@@ -11,7 +11,6 @@ contract Cowboy is Ownable, ERC404 {
 
     using DoubleEndedQueue for DoubleEndedQueue.Uint256Deque;
     mapping(uint256 => DoubleEndedQueue.Uint256Deque) private _storedERC721sByValue;
-//@todo init these integers in constructor
     using Strings for uint256;
     ///@dev token values constant for efficiency
     uint256 private constant MARLBORO_MEN = 600;
@@ -54,30 +53,32 @@ contract Cowboy is Ownable, ERC404 {
         _mintERC20(initialMintRecipient_, maxTotalSupplyERC721_ * units);
     }
 
-    function owned(address owner_) public view override returns (uint256[] memory) {
-    uint256 totalLength = 0;
+    function owned(address owner_
+      ) public view override returns (
+        uint256[] memory) {
+        uint256 totalLength = 0;
 
-    // Pre-calculate total length for all token values
-    for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
-        totalLength += _idsOwned[owner_][tokenValues[i]].length;
-    }
-
-    uint256[] memory allIds = new uint256[](totalLength);
-
-    uint256 currentIndex = 0;
-
-    // Iterate only once over tokenValues to populate allIds
-    for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
-        uint256[] memory idsForValue = _idsOwned[owner_][tokenValues[i]];
-
-        for (uint256 j = 0; j < idsForValue.length; j++) {
-            allIds[currentIndex++] = idsForValue[j];
-            // Directly increment currentIndex instead of using a separate statement
+        // Pre-calculate total length for all token values
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
+            totalLength += _idsOwned[owner_][tokenValues[i]].length;
         }
-    }
 
-    return allIds;
-}
+        uint256[] memory allIds = new uint256[](totalLength);
+
+        uint256 currentIndex = 0;
+
+        // Iterate only once over tokenValues to populate allIds
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
+            uint256[] memory idsForValue = _idsOwned[owner_][tokenValues[i]];
+
+            for (uint256 j = 0; j < idsForValue.length; j++) {
+                allIds[currentIndex++] = idsForValue[j];
+                // Directly increment currentIndex instead of using a separate statement
+            }
+        }
+
+        return allIds;
+    }
 
     function getNominalBalances(address user) public view returns (uint256[] memory) {
         uint256[] memory balances = new uint256[](NUM_TOKEN_VALUES);
@@ -99,8 +100,6 @@ contract Cowboy is Ownable, ERC404 {
         // Since balances.length is always 4, directly sum up the elements.
         return balances[0] + balances[1] + balances[2] + balances[3];
     }
-
-
 
     function getERC721TokensInQueueByValue(
         uint256 tokenValue_,
@@ -131,7 +130,10 @@ contract Cowboy is Ownable, ERC404 {
         _setERC721TransferExempt(account_, value_);
     }
     
-    ///@dev override to include valueOfId
+    /// @notice overrides Pandora's ERC404 to include valueOfId
+    /// @param from_ address transfering from
+    /// @param to_ address sending to
+    /// @param id_ token ID for the ERC721 being sent
     function erc721TransferFrom(
         address from_,
         address to_,
@@ -175,6 +177,11 @@ contract Cowboy is Ownable, ERC404 {
         _transferERC721(from_, to_, id_);
     }
 
+    ///@notice internal function to handle the transfer of a single ERC721 - override Pandora's version to
+    /// include value of ID
+    /// @param from_ address transfering from
+    /// @param to_ address sending to
+    /// @param id_ token ID for the ERC721 being sent
     function _transferERC721(
         address from_,
         address to_,
@@ -198,7 +205,6 @@ contract Cowboy is Ownable, ERC404 {
         }
         // pop
         ownedOfValue.pop();
-        
         }
 
         // Check if this is a burn.
@@ -221,7 +227,11 @@ contract Cowboy is Ownable, ERC404 {
 
         emit ERC721Events.Transfer(from_, to_, id_);
     }
-
+    
+    /// @notice function for transfering ERC20s and the corresponding ERC721s
+    /// @param from_ address transfering from
+    /// @param to_ address sending to
+    /// @param value_ in this context is quantity of ERC20s being transferred 
     function _transferERC20WithERC721(
         address from_,
         address to_,
@@ -250,11 +260,12 @@ contract Cowboy is Ownable, ERC404 {
         uint256 tokensToRetrieveOrMint = (balanceOf[to_] / units) -
         (erc20BalanceOfReceiverBefore / units);
 
+        // user calculateTokens to build list to retrieve or mint
         uint256[] memory _tokensToRetrieveOrMint = calculateTokens(tokensToRetrieveOrMint);
 
-            // Loop through each token value
+        // Loop through each token value 
         for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
-            uint256 quantity = _nftsToTransfer[i];
+            uint256 quantity = _tokensToRetrieveOrMint[i];
             uint256 _tokenValue = tokenValues[i]; // Directly use the value from the array
 
 
@@ -275,10 +286,10 @@ contract Cowboy is Ownable, ERC404 {
         // Only cares about whole number increments.
         uint256 tokensToWithdrawAndStore = (erc20BalanceOfSenderBefore / units) -
         (balanceOf[from_] / units);
-        /// add new function to loop through owned tokens
+        // new internal function to build a list of quantities to withdraw and store
         (uint256[] memory _tokensToWithdrawAndStore, ) = calculateFromTokensOwned(from_, tokensToWithdrawAndStore);
 
-        // Loop through each token value
+        // withdraw and store quantity of tokens from each value
         for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
             uint256 quantity = _tokensToWithdrawAndStore[i];
             uint256 _tokenValue = tokenValues[i]; 
@@ -329,7 +340,7 @@ contract Cowboy is Ownable, ERC404 {
         }
 
         // Then, check if the transfer causes the receiver to gain a whole new token which requires gaining
-        // an additional ERC-721.
+        // an additional ERC-721. In the case of cigarette tokens, it will be a LOOSIE
         //
         // Process:
         // Take the difference between the whole number of tokens before and after the transfer for the recipient.
@@ -347,7 +358,9 @@ contract Cowboy is Ownable, ERC404 {
 
     }
 
-
+    ///@dev function is modified from Pandora's 404 to use idsOfValue Deque and include tokenValue as param
+    ///@param to_ is the address to send stored or minted tokens
+    ///@param tokenValue_ is the value of the token to send
     function _retrieveOrMintERC721(address to_, uint256 tokenValue_) internal override {
         if (to_ == address(0)) {
         revert InvalidRecipient();
@@ -382,8 +395,10 @@ contract Cowboy is Ownable, ERC404 {
         // Does not handle ERC-721 exemptions.
         _transferERC721(erc721Owner, to_, id);
     }
-
-    /// modify this function to handle bulk
+    
+    ///@dev function is modified from Pandora's 404 to use idsOfValue Deque and include tokenValue as param
+    ///@param from_ is the address to withdraw and store tokens from
+    ///@param tokenValue_ is the value of the token to send
     function _withdrawAndStoreERC721(address from_, uint256 tokenValue_) internal override {
         if (from_ == address(0)) {
         revert InvalidSender();
@@ -402,6 +417,8 @@ contract Cowboy is Ownable, ERC404 {
         storedERC721sOfValue.pushFront(updatedId);
     }
 
+    ///@dev takes a quantity of units and builds a list of tokens to mint for each value
+    ///@param _units are whole ERC20s to calculate from
     function calculateTokens(uint256 _units) internal view returns (uint256[] memory) {
         uint256[] memory tokensToRetrieveOrMint = new uint256[](NUM_TOKEN_VALUES);
         uint256 remainingUnits = _units;
@@ -415,11 +432,15 @@ contract Cowboy is Ownable, ERC404 {
         return tokensToRetrieveOrMint;
         }
 
-
+    ///@dev takes a quantity of units and builds list of tokens to withdraw from address
+    /// this is helpful because it is possible for an address to have spare change in terms
+    /// of token denominations
+    ///@param owner_ is address to calculate tokens from
+    ///@param units_ is whole ERC20s to calculate from
     function calculateFromTokensOwned(
         address owner_, 
         uint256 units_
-    ) internal view returns (uint256[] memory, bool) {
+    )   internal view returns (uint256[] memory, bool) {
         uint256[] memory tokensToWithdraw = new uint256[](NUM_TOKEN_VALUES);
         uint256 remainingUnits = units_;
         uint256[] memory ownerBalances = getNominalBalances(owner_);
@@ -452,6 +473,9 @@ contract Cowboy is Ownable, ERC404 {
     }
 
     /// @notice Function to reinstate balance on exemption removal
+    /// @dev Pandora's 404 which had visibility private, changed to internal
+    /// to override it
+    /// @param target_ address to reinstate balances
     function _reinstateERC721Balance(address target_) internal override {
         uint256 _targetBalance = balanceOf[target_];
         uint256[] memory _tokensToRetrieveOrMint = calculateTokens(_targetBalance);
@@ -480,7 +504,11 @@ contract Cowboy is Ownable, ERC404 {
         }
     }
 
-
+    /// @notice Function to reinstate balance on exemption removal
+    /// @dev Pandora's 404 which had visibility private, changed to internal
+    /// to override it -  uses owned function to build list since token 
+    /// we are clearing all token IDs regardless of value
+    /// @param target_ address to reinstate balances
     function clearERC721Balance(address target_) private {
         uint[] memory targetTokens = owned(target_);
         for (uint256 i = 0; i < (targetTokens.length - 1); i++) {
