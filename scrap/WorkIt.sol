@@ -574,3 +574,109 @@ contract Cowboy is Ownable, ERC404 {
     }
 
 }
+
+/*
+
+
+function batchTransferERC721(
+    address from_,
+    address to_,
+    uint256[] memory ids
+) internal virtual {
+    // If this is not a mint, handle record keeping for transfer from previous owner.
+    if (from_ != address(0)) {
+        // On transfer of an NFT, any previous approval is reset.
+        for (uint256 i = 0; i < ids.length; i++) {
+            delete getApproved[ids[i]];
+
+            uint256 updatedId = _owned[from_][_owned[from_].length - 1];
+            if (updatedId != ids[i]) {
+                uint256 updatedIndex = _getOwnedIndex(ids[i]);
+                // Update _owned for sender
+                _owned[from_][updatedIndex] = updatedId;
+                // Update index for the moved id
+                _setOwnedIndex(updatedId, updatedIndex);
+            }
+
+            // Pop
+            _owned[from_].pop();
+        }
+    }
+
+    // If not a burn, update the owner of the tokens to the new owner.
+    if (to_ != address(0)) {
+        for (uint256 i = 0; i < ids.length; i++) {
+            // Update owner of the token to the new owner.
+            _setOwnerOf(ids[i], to_);
+            // Push token onto the new owner's stack.
+            _owned[to_].push(ids[i]);
+            // Update index for new owner's stack.
+            _setOwnedIndex(ids[i], _owned[to_].length - 1);
+        }
+    } else {
+        // If this is a burn, reset the owner of the tokens to 0x0 by deleting the tokens from _ownedData.
+        for (uint256 i = 0; i < ids.length; i++) {
+            delete _ownedData[ids[i]];
+        }
+    }
+
+    // Emit Transfer event for each token transferred.
+    for (uint256 i = 0; i < ids.length; i++) {
+        emit ERC721Events.Transfer(from_, to_, ids[i]);
+    }
+}
+
+
+
+function sortOwnedTokens(address owner) internal {
+    uint256 totalOwned = _owned[owner].length;
+    
+    // Step 1: Initialize temporary arrays
+    uint256[] memory marlboroMenTokens = new uint256[](totalOwned);
+    uint256[] memory cartonTokens = new uint256[](totalOwned);
+    uint256[] memory packTokens = new uint256[](totalOwned);
+    uint256[] memory loosieTokens = new uint256[](totalOwned);
+    
+    uint256 marlboroMenCount;
+    uint256 cartonCount;
+    uint256 packCount;
+    uint256 loosieCount;
+    
+    // Step 2: Group IDs by their value
+    for (uint256 i = 0; i < totalOwned; i++) {
+        uint256 tokenId = _owned[owner][i];
+        uint256 value = _valueOfId[tokenId];
+        
+        if (value == MARLBORO_MEN) {
+            marlboroMenTokens[marlboroMenCount++] = tokenId;
+        } else if (value == CARTONS) {
+            cartonTokens[cartonCount++] = tokenId;
+        } else if (value == PACKS) {
+            packTokens[packCount++] = tokenId;
+        } else if (value == LOOSIES) {
+            loosieTokens[loosieCount++] = tokenId;
+        }
+    }
+    
+    // Step 3: Concatenate the groups in descending order of their values
+    uint256[] memory sortedTokens = new uint256[](totalOwned);
+    uint256 index = 0;
+    for (uint256 i = 0; i < marlboroMenCount; i++) {
+        sortedTokens[index++] = marlboroMenTokens[i];
+    }
+    for (uint256 i = 0; i < cartonCount; i++) {
+        sortedTokens[index++] = cartonTokens[i];
+    }
+    for (uint256 i = 0; i < packCount; i++) {
+        sortedTokens[index++] = packTokens[i];
+    }
+    for (uint256 i = 0; i < loosieCount; i++) {
+        sortedTokens[index++] = loosieTokens[i];
+    }
+    
+    // Step 4: Update the owner's array
+    _owned[owner] = sortedTokens;
+}
+
+*/
+    

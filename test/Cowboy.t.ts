@@ -13,6 +13,7 @@ describe("Cowboy Contract", function () {
     const units = 10n ** decimals
     const maxTotalSupplyERC721 = 100n
     const maxTotalSupplyERC20 = maxTotalSupplyERC721 * units
+    const uniswapV2Router = signers[0] 
     const initialOwner = signers[0]
     const initialMintRecipient = signers[0]
     const idPrefix =
@@ -233,6 +234,47 @@ describe("Cowboy Contract", function () {
     }
   }
 
+  async function deployERC404ExampleWithLargeNumberOfTokensInSecondSigner() {
+    const f = await loadFixture(deployCowboy)
+    const from = f.signers[1]
+    const to = f.signers[2]
+
+    // Start off with 100 full tokens.
+    const initialExperimentBalanceERC721 = 100000n
+    const initialExperimentBalanceERC20 =
+      initialExperimentBalanceERC721 * f.deployConfig.units
+
+    const balancesBeforeSigner0 = await getBalances(
+      f.contract,
+      f.signers[0].address,
+    )
+    const balancesBeforeSigner1 = await getBalances(
+      f.contract,
+      f.signers[1].address,
+    )
+
+    // console.log("balancesBeforeSigner0", balancesBeforeSigner0)
+    // console.log("balancesBeforeSigner1", balancesBeforeSigner1)
+
+    // Add the owner to the exemption list
+    await f.contract
+      .connect(f.signers[0])
+      .setERC721TransferExempt(f.signers[0].address, true)
+
+    // Transfer all tokens from the owner to 'from', who is the initial sender for the tests.
+    await f.contract
+      .connect(f.signers[0])
+      .transfer(from.address, initialExperimentBalanceERC20)
+
+    return {
+      ...f,
+      initialExperimentBalanceERC20,
+      initialExperimentBalanceERC721,
+      from,
+      to,
+    }
+  }
+
   async function deployERC404ExampleWithSomeTokensTransferredToRandomAddress() {
     const f = await loadFixture(deployCowboy)
 
@@ -255,6 +297,16 @@ describe("Cowboy Contract", function () {
     return {
       erc20: await contract.erc20BalanceOf(address),
       erc721: await contract.erc721BalanceOf(address),
+    }
+  }
+
+  async function getNominalBalancesOf(contract: any, address: string) {
+    const balances = await contract.getNominalBalances(address);
+    return {
+      MARLBORO_MEN: balances[0],
+      CARTONS: balances[1],
+      PACKS: balances[2],
+      LOOSIES: balances[3]
     }
   }
 
@@ -741,6 +793,240 @@ describe("Cowboy Contract", function () {
           // Assuming the receiver should have gained 1 NFT due to the transfer completing a whole token
           expect(fromBalancesAfter.erc721).to.equal(fromBalancesBefore.erc721) // No change for the sender
           expect(toBalancesAfter.erc721).to.equal(toBalancesBefore.erc721 + 1n)
+        })
+
+        it("Handles the case of the sender losing a partial token, dropping it below a full token", async function () {
+          const f = await loadFixture(
+            deployERC404ExampleWithTokensInSecondSigner,
+          )
+
+          // Initial balances
+          const fromBalancesBefore = await getBalances(
+            f.contract,
+            f.from.address,
+          )
+          const toBalancesBefore = await getBalances(f.contract, f.to.address)
+
+          expect(fromBalancesBefore.erc20 / f.deployConfig.units).to.equal(100n)
+
+          // Sender starts with 100 tokens and sends 0.1, resulting in the loss of 1 NFT but no NFT transfer to the receiver.
+          const initialFractionalAmount = f.deployConfig.units / 10n // 0.1 token in sub-units
+          const transferAmount = initialFractionalAmount * 1n // 0.1 tokens, ensuring a loss of a whole token after transfer
+
+          // Perform the transfer
+          await f.contract
+            .connect(f.from)
+            .transfer(f.to.address, transferAmount)
+
+          // Post-transfer balances
+          const fromBalancesAfter = await getBalances(
+            f.contract,
+            f.from.address,
+          )
+          const toBalancesAfter = await getBalances(f.contract, f.to.address)
+
+          // Verify ERC20 balances after transfer
+          expect(fromBalancesAfter.erc20).to.equal(
+            fromBalancesBefore.erc20 - transferAmount,
+          )
+          expect(toBalancesAfter.erc20).to.equal(
+            toBalancesBefore.erc20 + transferAmount,
+          )
+
+          // Verify ERC721 balances after transfer
+          // Assuming the sender should lose 1 NFT due to the transfer causing a loss of a whole token.
+          // Sender loses an NFT
+          expect(fromBalancesAfter.erc721).to.equal(
+            fromBalancesBefore.erc721 - 1n,
+          )
+          // No NFT gain for the receiver
+          expect(toBalancesAfter.erc721).to.equal(toBalancesBefore.erc721)
+          // Contract gains an NFT (it's stored in the contract in this scenario).
+          // TODO - Verify this with the contract's balance.
+        })
+      },
+    )
+
+    context("Moving one or more full tokens", async function () {
+      it("Transfers whole tokens without fractional impact correctly", async function () {
+        const f = await loadFixture(deployERC404ExampleWithTokensInSecondSigner)
+
+        // Initial balances
+        const fromBalancesBefore = await getBalances(f.contract, f.from.address)
+        const toBalancesBefore = await getBalances(f.contract, f.to.address)
+
+        // Expect initial balances to match setup
+        expect(fromBalancesBefore.erc20).to.equal(
+          f.initialExperimentBalanceERC20,
+        )
+        expect(fromBalancesBefore.erc721).to.equal(
+          f.initialExperimentBalanceERC721,
+        )
+        expect(toBalancesBefore.erc20).to.equal(0n)
+        expect(toBalancesBefore.erc721).to.equal(0n)
+
+        // Transfer 2 whole tokens
+        const erc721TokensToTransfer = 2n
+        const valueToTransferERC20 =
+          erc721TokensToTransfer * f.deployConfig.units
+        await f.contract
+          .connect(f.from)
+          .transfer(f.to.address, valueToTransferERC20)
+
+        // Post-transfer balances
+        const fromBalancesAfter = await getBalances(f.contract, f.from.address)
+        const toBalancesAfter = await getBalances(f.contract, f.to.address)
+
+        // Verify ERC20 balances after transfer
+        expect(fromBalancesAfter.erc20).to.equal(
+          fromBalancesBefore.erc20 - valueToTransferERC20,
+        )
+        expect(toBalancesAfter.erc20).to.equal(
+          toBalancesBefore.erc20 + valueToTransferERC20,
+        )
+
+        // Verify ERC721 balances after transfer - Assuming 2 NFTs should have been transferred
+        expect(fromBalancesAfter.erc721).to.equal(
+          fromBalancesBefore.erc721 - erc721TokensToTransfer,
+        )
+        expect(toBalancesAfter.erc721).to.equal(
+          toBalancesBefore.erc721 + erc721TokensToTransfer,
+        )
+      })
+
+      it("Handles the case of sending 3.2 tokens where the sender started out with 99.1 tokens and the receiver started with 0.9 tokens", async function () {
+        // This test demonstrates all 3 cases in one scenario:
+        // - The sender loses a partial token, dropping it below a full token (99.1 - 3.2 = 95.9)
+        // - The receiver gains a whole new token (0.9 + 3.2 (3 whole, 0.2 fractional) = 4.1)
+        // - The sender transfers 3 whole tokens to the receiver (99.1 - 3.2 (3 whole, 0.2 fractional) = 95.9)
+
+        const f = await loadFixture(deployERC404ExampleWithTokensInSecondSigner)
+
+        // Receiver starts out with 0.9 tokens
+        const startingBalanceOfReceiver = (f.deployConfig.units / 10n) * 9n // 0.9 tokens
+        await f.contract
+          .connect(f.from)
+          .transfer(f.to.address, startingBalanceOfReceiver)
+
+        // Initial balances
+        const fromBalancesBefore = await getBalances(f.contract, f.from.address)
+        const toBalancesBefore = await getBalances(f.contract, f.to.address)
+
+        // console.log("fromBalancesBefore", fromBalancesBefore)
+        // console.log("toBalancesBefore", toBalancesBefore)
+
+        // Ensure that the receiver has 0.9 tokens and 0 NFTs.
+        expect(toBalancesBefore.erc20).to.equal(startingBalanceOfReceiver)
+        expect(toBalancesBefore.erc721).to.equal(0n)
+
+        // Transfer an amount that results in:
+        // - the receiver gaining a whole new token (0.9 + 0.2 + 3)
+        // - the sender losing a partial token, dropping it below a full token (99.1 - 3.2 = 95.9)
+        const fractionalValueToTransferERC20 =
+          (f.deployConfig.units / 10n) * 32n // 3.2 tokens
+        await f.contract
+          .connect(f.from)
+          .transfer(f.to.address, fractionalValueToTransferERC20)
+
+        // Post-transfer balances
+        const fromBalancesAfter = await getBalances(f.contract, f.from.address)
+        const toBalancesAfter = await getBalances(f.contract, f.to.address)
+
+        // console.log("fromBalancesAfter", fromBalancesAfter)
+        // console.log("toBalancesAfter", toBalancesAfter)
+
+        // Verify ERC20 balances after transfer
+        expect(fromBalancesAfter.erc20).to.equal(
+          fromBalancesBefore.erc20 - fractionalValueToTransferERC20,
+        )
+        expect(toBalancesAfter.erc20).to.equal(
+          toBalancesBefore.erc20 + fractionalValueToTransferERC20,
+        )
+
+        // Verify ERC721 balances after transfer
+        // The receiver should have gained 3 NFTs from the transfer and 1 NFT due to the transfer completing a whole token for a total of +4 NFTs.
+        expect(fromBalancesAfter.erc721).to.equal(
+          fromBalancesBefore.erc721 - 4n,
+        )
+        expect(toBalancesAfter.erc721).to.equal(toBalancesBefore.erc721 + 4n)
+      })
+    })
+  })
+
+  describe("ERC20 token transfer logic for triggering ERC721 transfers", function () {
+    context(
+      "Transfers of various larger quantities that trigger ERC721 transfers",
+      async function () {
+        it("Handles the case of the receiver gaining new tokens of each denomination", async function () {
+          const f = await loadFixture(
+            deployERC404ExampleWithLargeNumberOfTokensInSecondSigner,
+          )
+
+          // Receiver starts out with 0.9 tokens
+          const startingBalanceOfReceiver = (f.deployConfig.units / 10n) * 9n // 0.9 tokens
+          await f.contract
+            .connect(f.from)
+            .transfer(f.to.address, startingBalanceOfReceiver)
+
+          // Initial balances
+          const fromBalancesBefore = await getBalances(
+            f.contract,
+            f.from.address,
+          )
+          const toBalancesBefore = await getBalances(f.contract, f.to.address)
+
+          const toNominalBalancesBefore = await getnNominalBalancesOf(f.to.address)
+
+          // console.log("fromBalancesBefore", fromBalancesBefore)
+          // console.log("toBalancesBefore", toBalancesBefore)
+
+          // Ensure that the receiver has 0.9 tokens and 0 NFTs.
+          expect(toBalancesBefore.erc20).to.equal(startingBalanceOfReceiver)
+          expect(toBalancesBefore.erc721).to.equal(0n)
+
+          // Ensure that the receiver has no nominal balance before
+          expect(toNominalBalancesBefore.MARLBORO_MEN).to.equal(0n)
+          expect(toNominalBalancesBefore.CARTONS).to.equal(0n)
+          expect(toNominalBalancesBefore.PACKS).to.equal(0n)
+          expect(toNominalBalancesBefore.LOOSIES).to.equal(0n)
+
+          // Transfer an amount that results in the receiver gaining a whole new token of each value (0.9 + 838.2)
+          const fractionalValueToTransferERC20 = f.deployConfig.units / 113820n // 0.1 tokens
+          await f.contract
+            .connect(f.from)
+            .transfer(f.to.address, fractionalValueToTransferERC20)
+
+          // Post-transfer balances
+          const fromBalancesAfter = await getBalances(
+            f.contract,
+            f.from.address,
+          )
+          const toBalancesAfter = await getBalances(f.contract, f.to.address)
+
+          const toNominalBalancesAfter = await getNominalBalancesOf(f.to.address)
+
+          // console.log("fromBalancesAfter", fromBalancesAfter)
+          // console.log("toBalancesAfter", toBalancesAfter)
+
+          // Verify ERC20 balances after transfer
+          expect(fromBalancesAfter.erc20).to.equal(
+            fromBalancesBefore.erc20 - fractionalValueToTransferERC20,
+          )
+          expect(toBalancesAfter.erc20).to.equal(
+            toBalancesBefore.erc20 + fractionalValueToTransferERC20,
+          )
+          
+
+          // Verify ERC721 balances after transfer
+          // Assuming the receiver should have gained 1 NFT due to the transfer completing a whole token
+          expect(fromBalancesAfter.erc721).to.equal(fromBalancesBefore.erc721) // No change for the sender
+          expect(toBalancesAfter.erc721).to.equal(toBalancesBefore.erc721 + 26n)
+
+          //veryfy nominal balances after transfer
+          expect(toNominalBalancesAfter.MARLBORO_MEN).to.equal(toNominalBalancesBefore + 1n)
+          expect(toNominalBalancesAfter.CARTONS).to.equal(toNominalBalancesBefore + 2n)
+          expect(toNominalBalancesAfter.PACKS).to.equal(toNominalBalancesBefore + 5n)
+          expect(toNominalBalancesAfter.LOOSIES).to.equal(toNominalBalancesBefore + 9n)
         })
 
         it("Handles the case of the sender losing a partial token, dropping it below a full token", async function () {

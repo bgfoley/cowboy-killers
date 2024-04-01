@@ -3,7 +3,7 @@ import path from 'path';
 
 // Adjust these paths according to your project structure
 const abiPath = path.join(__dirname, '../artifacts/contracts/Cowboy.sol/Cowboy.json');
-const outputPath = path.join(__dirname, '../test/generatedTests.ts');
+const outputPath = path.join(__dirname, '../test/generatedTests.2.ts');
 
 // Load ABI from compiled contract JSON
 const abi = JSON.parse(fs.readFileSync(abiPath, 'utf8')).abi;
