@@ -243,7 +243,7 @@ describe("Cowboy Contract", function () {
     // Transfer some tokens to a non-exempted wallet to generate the NFTs.
     await f.contract
       .connect(f.signers[0])
-      .transfer(targetAddress, 5n * f.deployConfig.units)
+      .transfer(targetAddress, 25n * f.deployConfig.units)
 
     expect(await f.contract.erc721TotalSupply()).to.equal(5n)
 
@@ -381,7 +381,7 @@ describe("Cowboy Contract", function () {
         deployERC404ExampleWithSomeTokensTransferredToRandomAddress,
       )
 
-      expect(await f.contract.erc721TotalSupply()).to.eq(5n)
+      expect(await f.contract.erc721TotalSupply()).to.eq(100n)
     })
   })
 
