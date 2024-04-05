@@ -462,11 +462,10 @@ abstract contract ERC404 is IERC404 {
         return target_ == address(0) || _erc721TransferExempt[target_];
     }
 
-///@notice Made this virtual
     /// @notice For a token token id to be considered valid, it just needs
     ///         to fall within the range of possible token ids, it does not
     ///         necessarily have to be minted yet.
-    function _isValidTokenId(uint256 id_) internal pure virtual returns (bool) {
+    function _isValidTokenId(uint256 id_) internal pure returns (bool) {
         return id_ > ID_ENCODING_PREFIX && id_ != type(uint256).max;
     }
 
@@ -689,6 +688,46 @@ abstract contract ERC404 is IERC404 {
     }
    
    
+   ///@dev modified function to include tokenValue argument
+    function _retrieveOrMintERC721(
+        address to_,
+        uint256 tokenValue_
+    ) internal virtual {
+        if (to_ == address(0)) {
+            revert InvalidRecipient();
+        }
+
+        uint256 id;
+
+        if (!_storedERC721Ids.empty()) {
+            // If there are any tokens in the bank, use those first.
+            // Pop off the end of the queue (FIFO).
+            id = _storedERC721Ids.popBack();
+        } else {
+            // Otherwise, mint a new token, should not be able to go over the total fractional supply.
+            ++minted;
+
+            // Reserve max uint256 for approvals
+            if (minted == type(uint256).max) {
+                revert MintLimitReached();
+            }
+
+            id = ID_ENCODING_PREFIX + minted;
+        }
+
+        address erc721Owner = _getOwnerOf(id);
+
+        // The token should not already belong to anyone besides 0x0 or this contract.
+        // If it does, something is wrong, as this should never happen.
+        if (erc721Owner != address(0)) {
+            revert AlreadyExists();
+        }
+
+        // Transfer the token to the recipient, either transferring from the contract's bank or minting.
+        // Does not handle ERC-721 exemptions.
+        _transferERC721(erc721Owner, to_, id);
+    }
+
     /// @notice Internal function for ERC-721 minting and retrieval from the bank.
     /// @dev This function will allow minting of new ERC-721s up to the total fractional supply. It will
     ///      first try to pull from the bank, and if the bank is empty, it will mint a new token.
@@ -729,43 +768,6 @@ abstract contract ERC404 is IERC404 {
         _transferERC721(erc721Owner, to_, id);
     }
 
-    function _retrieveOrMintERC721(address to_, uint256 amount_) internal virtual {
-        if (to_ == address(0)) {
-            revert InvalidRecipient();
-        }
-
-        uint256 id;
-
-        if (!_storedERC721Ids.empty()) {
-            // If there are any tokens in the bank, use those first.
-            // Pop off the end of the queue (FIFO).
-            id = _storedERC721Ids.popBack();
-        } else {
-            // Otherwise, mint a new token, should not be able to go over the total fractional supply.
-            ++minted;
-
-            // Reserve max uint256 for approvals
-            if (minted == type(uint256).max) {
-                revert MintLimitReached();
-            }
-
-            id = ID_ENCODING_PREFIX + minted;
-        }
-
-        address erc721Owner = _getOwnerOf(id);
-
-        // The token should not already belong to anyone besides 0x0 or this contract.
-        // If it does, something is wrong, as this should never happen.
-        if (erc721Owner != address(0)) {
-            revert AlreadyExists();
-        }
-
-        // Transfer the token to the recipient, either transferring from the contract's bank or minting.
-        // Does not handle ERC-721 exemptions.
-        _transferERC721(erc721Owner, to_, id);
-    }
-
-
     /// @notice Internal function for ERC-721 deposits to bank (this contract).
     /// @dev This function will allow depositing of ERC-721s to the bank, which can be retrieved by future minters.
     // Does not handle ERC-721 exemptions.
@@ -785,7 +787,11 @@ abstract contract ERC404 is IERC404 {
         _storedERC721Ids.pushFront(id);
     }
 
-     function _withdrawAndStoreERC721(address from_, uint256 amount_) internal virtual {
+    ///@notice duplicate to add both arguments
+    function _withdrawAndStoreERC721(
+        address from_,
+        uint256 value_
+    ) internal virtual {
         if (from_ == address(0)) {
             revert InvalidSender();
         }
