@@ -5,7 +5,7 @@ import { ethers, network } from "hardhat"
 describe("ERC404", function () {
   async function deployERC404Example() {
     const signers = await ethers.getSigners()
-    const factory = await ethers.getContractFactory("ERC404TVExt")
+    const factory = await ethers.getContractFactory("TheCowboy")
 
     const name = "Example"
     const symbol = "EX-A"
