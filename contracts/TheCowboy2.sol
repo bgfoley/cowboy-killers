@@ -7,7 +7,7 @@ import {ERC404} from "./ERC404.sol";
 import {ERC721Events} from "./lib/ERC721Events.sol";
 import {ERC20Events} from "./lib/ERC20Events.sol";
 
-contract TheCowboy is Ownable, ERC404 {
+contract TheCowboy2 is Ownable, ERC404 {
     using DoubleEndedQueue for DoubleEndedQueue.Uint256Deque;
     ///@dev deque for each token value for easy storage and retrieval
     mapping(uint256 => DoubleEndedQueue.Uint256Deque)
@@ -57,30 +57,29 @@ contract TheCowboy is Ownable, ERC404 {
         address owner_
       ) public view override returns (uint256[] memory) {
         uint256 totalLength = 0;
-        // Pre-calculate total list length for each token value 
-        unchecked {
-            for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
-                totalLength += _idsOwned[owner_][tokenValues[i]].length;
-            }
+        // Pre-calculate total list length for each token value
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES; /* increment inside */) {
+            totalLength += _idsOwned[owner_][tokenValues[i]].length;
+            unchecked { ++i; } // Increment without checks
         }
 
         uint256[] memory allIds = new uint256[](totalLength);
         uint256 currentIndex = 0;
         // Iterate only once over tokenValues to populate allIds
-        unchecked {
-            for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
-                uint256[] memory idsForValue = _idsOwned[owner_][tokenValues[i]];
-                for (uint256 j = 0; j < idsForValue.length; j++) {
-                    allIds[currentIndex++] = idsForValue[j];
-                }
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
+            uint256[] memory idsForValue = _idsOwned[owner_][tokenValues[i]];
+            for (uint256 j = 0; j < idsForValue.length; /* increment inside */) {
+                allIds[currentIndex++] = idsForValue[j];
+                unchecked { ++j; } // Increment without checks
             }
+            unchecked { ++i; } // Increment without checks
         }
 
         return allIds;
     }
 
 
-    function ownedOfValue(
+    function getOwnedOfValue(
         address owner_,
         uint256 tokenValue_
     )
@@ -90,18 +89,20 @@ contract TheCowboy is Ownable, ERC404 {
     }
 
     /// @notice gets user balance of each token value
-    /// @param user is address to get balances for
+    /// @param user is the address to get balances for
     function getNominalBalances(
         address user
-    ) public view returns (uint256[] memory) {
+      ) public view returns (uint256[] memory) {
         uint256[] memory balances = new uint256[](NUM_TOKEN_VALUES);
-        for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
             uint256 _tokenValue = tokenValues[i]; // Use the global constant array
             balances[i] = _idsOwned[user][_tokenValue].length;
+            
+            unchecked { ++i; }
         }
-
         return balances;
     }
+
 
     function getNextId(
         address owner, 
@@ -129,7 +130,7 @@ contract TheCowboy is Ownable, ERC404 {
     /// @param value of tokens in queue
     function getERC721QueueLength(
         uint256 value
-    ) public view override returns (uint256) {
+      ) public view override returns (uint256) {
         DoubleEndedQueue.Uint256Deque storage deque = _storedERC721sByValue[
             value
         ];
@@ -137,24 +138,19 @@ contract TheCowboy is Ownable, ERC404 {
     }
 
     /// @notice total ERC721s in the queue
-    function getERC721QueueLength()
-        public
-        view
-        override
-        returns (uint256 totalLength)
-    {
+    function getERC721QueueLength() public view override returns (uint256 totalLength) {
         totalLength = 0;
-        for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES; /* no increment here */) {
             uint256 tokenValue = tokenValues[i];
-            DoubleEndedQueue.Uint256Deque storage deque = _storedERC721sByValue[
-                tokenValue
-            ];
-            // Sum the lengths
+            DoubleEndedQueue.Uint256Deque storage deque = _storedERC721sByValue[tokenValue];
+
             unchecked {
                 totalLength += deque.length();
+                ++i; // Increment i unchecked
             }
         }
     }
+
 
     /// @notice gets the number of tokens in the queue by value and index
     function getERC721TokensInQueueByValue(
@@ -311,23 +307,21 @@ contract TheCowboy is Ownable, ERC404 {
             //         to transfer ERC-721s from the sender, but the recipient should receive ERC-721s
             //         from the bank/minted for any whole number increase in their balance.
             // Only cares about whole number increments.
-            uint256 tokensToRetrieveOrMint = (balanceOf[to_] / units) -
+            uint256 nftsToRetrieveOrMint = (balanceOf[to_] / units) -
                 (erc20BalanceOfReceiverBefore / units);
 
             // user calculateTokens to build list to retrieve or mint
             uint256[] memory _tokensToRetrieveOrMint = calculateTokens(
-                tokensToRetrieveOrMint
+                nftsToRetrieveOrMint
             );
 
-            // Loop through each token value
+            // Loop through each token value using quantity from memory to retrieve or mint
             for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
                 uint256 quantity;
                 uint256 _tokenValue;
 
-                unchecked {
-                    quantity = _tokensToRetrieveOrMint[i];
-                    _tokenValue = tokenValues[i]; // Directly use the value from the array
-                }
+                quantity = _tokensToRetrieveOrMint[i]; // Use the value from memory array
+                _tokenValue = tokenValues[i]; // Directly use the value from the global array
 
                 // If quantity is zero, no need to call _retrieveOrMintERC721
                 if (quantity > 0) {
@@ -346,366 +340,93 @@ contract TheCowboy is Ownable, ERC404 {
                     ++i;
                 }
             }
+        
         } else if (isToERC721TransferExempt) {
             // Case 3) The sender is not ERC-721 transfer exempt, but the recipient is. Contract should attempt
             //         to withdraw and store ERC-721s from the sender, but the recipient should not
             //         receive ERC-721s from the bank/minted.
             // Only cares about whole number increments.
-            uint256 tokensToWithdrawAndStore = (erc20BalanceOfSenderBefore /
+            // Use the greedy algo logic to loop the values from greatest to least
+            uint256 nftsToWithdrawAndStore = (erc20BalanceOfSenderBefore /
                 units) - (balanceOf[from_] / units);
-            // iterate through each value
-            for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
-                tokenValue_ = _tokenValues[i];
-                uint256[] ids = ownedOfValue(from_, _tokenValue);
-                
-                // skip if no tokens of value to withdraw
-                // determine how many ERC721 to withdraw
-                uint256 tokens = (tokensToWithdrawAndStore/(ids.length));
-                if (!ids.length == 0 && tokens > 1) {
-                    
-                    // withdraw the tokens
-                    for (uint256 j = 0; j < tokens; ) {
-                        _withdrawAndStoreERC721(from_, _tokenValue);
-                        tokensToWithdrawAndStore -= _tokenValue;
-                        unchecked {
-                            ++j
-                        }
-                    }
-                        unchecked { 
-                            ++i
-                        }
-                    }
-                }
-
-
-                }  else {
-                    // check if change will be needed to cover remaining tokens before moving on to next tokenValue
-                    if (balanceOf(from_) - (tokenValue_ * (ids.length())) < tokensToWithdrawAndStore) {
-                        // withdraw ERC721
-                        _withdrawAndStoreERC721(from_, tokenValue_);
-                        
-                        // update remaining tokens to withdraw
-                        uint256 changeOwedToSender = tokenValue - tokensToWithdrawAndStore;
-                        
-                        // get change for the sender
-                        uint256[] tokensToRetrieveOrMintForSender = calculateTokens(changeOwedToSender);
-                        // Loop through each token value
-                        for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
-                            uint256 quantity;
-                            uint256 _tokenValue;
-
-                            unchecked {
-                                quantity = _tokensToRetrieveOrMintForSender[i];
-                                _tokenValue = tokenValues[i]; // Directly use the value from the array
-                            }
-
-                            // If quantity is zero, no need to call _retrieveOrMintERC721
-                            if (quantity > 0) {
-                                // Loop 'quantity' times for this token value
-                                for (uint256 j = 0; j < quantity; ) {
-                                    // Call _retrieveOrMintERC721 for each quantity
-                                    
-                                        _retrieveOrMintERC721(to_, _tokenValue);
-                                    unchecked {
-                                        ++j;
-                                    }
-                                }
-                            }
-
-                            unchecked {
-                                ++i;
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-        // Case 4) Neither the sender nor the recipient are ERC-721 transfer exempt.
-        // Strategy:
-        // 1. First deal with the whole tokens, from highest value to lowest
-        // 2. Get change for the sender if need is there
-        // 3. Look at the fractional part of the value:
-        //   a) If it causes the sender to lose a whole token that was represented by an NFT due to a
-        //      fractional part being transferred, withdraw and store an additional NFT from the sender.
-        //   b) If it causes the receiver to gain a whole new token that should be represented by an NFT
-        //      due to receiving a fractional part that completes a whole token, retrieve or mint an NFT to the recevier.
-
-        // Whole tokens worth of ERC-20s get transferred as ERC-721s without any burning/minting.
             
-        uint256 nftsToTransfer = value_ / units;
+            batchWithdrawAndStore(from_, nftsToWithdrawAndStore, erc20BalanceOfSenderBefore);
 
-                // iterate through each token value
-                unchecked {
-                    for (uint256 i = 0; i < NUM_TOKEN_VALUES; ++i) {
-                        _tokenValue = _tokenValues[i];
-                        
-                        // get a list of tokens owned of value
-                        uint256[] memory ids = ownedOfValue(from_, _tokenValue);
-                        if (ids.length != 0) {
-                            uint256 quantity = nftsToTransfer / ids.length;
-                            // Corrected the way to access the last element in the ids array
-                            uint256 tokenId = ids[ids.length - 1];
-                            if (quantity > 1) {
-                                // This inner loop is already unchecked
-                                for (uint256 j = 0; j < quantity; ++j) {
-                                    _transferERC721(to_, tokenId);
-                                    nftsToTransfer -= _tokenValue; 
-                                }
-                            }
-                        }
-                    }
+            } else {
+            // Case 4) Neither the sender nor the recipient are ERC-721 transfer exempt.
+            // Strategy:
+            // 1. First deal with the whole tokens, from highest value to lowest
+            // 2. Get change for the sender if need is there
+            // 3. Look at the fractional part of the value:
+            //   a) If it causes the sender to lose a whole token that was represented by an NFT due to a
+            //      fractional part being transferred, withdraw and store an additional NFT from the sender.
+            //   b) If it causes the receiver to gain a whole new token that should be represented by an NFT
+            //      due to receiving a fractional part that completes a whole token, retrieve or mint an NFT to the recevier.
+
+            // Whole tokens worth of ERC-20s get transferred as ERC-721s without any burning/minting.
+            uint256 nftsToTransfer = value_ / units;
+
+            // batch transfer function to handle large use of memory
+            batchTransferERC721(from_, to_, nftsToTransfer, erc20BalanceOfSenderBefore);
+
+
+            
+
+                // Then lastly, check either party has gained or lost an entire single token
+                // that has not been accounted for as a LOOSIE
+
+                if (erc20BalanceOfSenderBefore / units - erc20BalanceOf(from_) / units > nftsToTransfer
+                    ) {_withdrawAndStoreERC721(from_, tokenValues[3]);
                 }
 
-            } else {                         
-                
-                    // check if change will be needed to cover remaining tokens before moving on to next tokenValue
-                    // check if no remainder
-                    if (balanceOf(from_) - (_tokenValue * (ids.length)) < nftsToTransfer) {
-                        // get change to cover 
-                        _withdrawAndStoreERC721(from_, _tokenValue);
-                        // update remaining tokens to withdraw
-                        uint256 changeOwedToSender = _tokenValue - tokensToWithdrawAndStore;
-                        uint256[] tokensToRetrieveOrMintForSender = calculateTokens(changeOwedToSender);
-                        // Loop through each token value
-                        for (uint256 j = 0; j < NUM_TOKEN_VALUES; ) {
-                            uint256 quantity;
-                            uint256 _tokenValue;
-
-                unchecked {
-                                quantity = _tokensToRetrieveOrMintForSender[j];
-                                _tokenValue = tokenValues[j]; // Directly use the value from the array
-                            }
-
-                            // If quantity is zero, no need to call _retrieveOrMintERC721
-                            if (quantity > 0) {
-                                // Loop 'quantity' times for this token value
-                                for (uint256 k = 0; k < quantity; ) {
-                                    // Call _retrieveOrMintERC721 for each quantity
-                                    
-                                        _retrieveOrMintERC721(from_, _tokenValue);
-                                unchecked {
-                                        ++k;
-                                    }
-                                }
-                            }
-
-                            unchecked {
-                                ++j;
-                            }
-                        }
-
-                    }
-                }
-                    
-            }
-            /*
-            
-            
-            // new internal function to build a list of quantities to withdraw and store
-            uint256[] memory _tokenIdsToWithdrawAndStore = owned(from_);
-
-            // loop through Ids to satisfy tokensToWithdrawAndStore 
-            for (uint256 i = 0; i < _tokenIdsToWithdrawAndStore.length; --i) {
-               
-                uint256 tokenValue_ = _valueOfId[_tokensIdsToWithdrawAndStore[i]];
-                if (tokensToWithdrawAndStore > tokenValue_) {
-                    _withdrawAndStoreERC721(from_, tokenValue_);
-                    tokensToWithdrawAndStore -= tokenValue_;
-                } else {
-
-                }
-
-            }
-            
-            = calculateFromTokensOwned(from_, tokensToWithdrawAndStore);
-
-            if (exactChange != true) {
-                uint256 changeNeeded = getChangeForTokenValue - remainingUnits; 
-                _withdrawAndStoreERC721(from_, getChangeForTokenValue);
-                _retrieveOrMintERC721(from_, changeNeeded);
+                // Then, check if the transfer causes the receiver to gain a whole new token which requires gaining
+                // an additional ERC-721. In the case of cigarette tokens, it will be a LOOSIE
+                //
+                // Process:
+                // Take the difference between the whole number of tokens before and after the transfer for the recipient.
+                // If that difference is greater than the number of ERC-721s transferred (whole units), then there was
+                // an additional ERC-721 gained due to the fractional portion of the transfer.
+                // Again, for self-sends where the before and after balances are equal, no ERC-721s will be gained here.
+                if (erc20BalanceOf(to_) / units - erc20BalanceOfReceiverBefore / units > nftsToTransfer) {
+                    _retrieveOrMintERC721(to_, tokenValues[3]);
+                }     
             }
 
-            // Withdraw and store quantity of tokens from each value
-            for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
-                uint256 quantity;
-                uint256 _tokenValue;
-
-                unchecked {
-                    quantity = _tokensToWithdrawAndStore[i];
-                    _tokenValue = tokenValues[i];
-                }
-
-                // If quantity is zero, no need to call _withdrawAndStore
-                if (quantity > 0) {
-                    // Loop 'quantity' times for this token value
-                    for (uint256 j = 0; j < quantity; ) {
-                        // Call _withdrawAndStoreERC721 for each quantity
-                       
-
-                            _withdrawAndStoreERC721(to_, _tokenValue);
-
-                    unchecked {
-                            ++j;
-                        }
-                    }
-                }
-
-                unchecked {
-                    ++i;
-                }
-            } */
-       
-                
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-        /*    
-            
-            
-            
-            
-            uint256[] memory _tokensToWithdrawAndStore = calculateTokens(nftsToTransfer);
-            
-            for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
-                
-                unchecked {
-                ++i;
-                }
-            }
-
-
-
-            (uint256[] memory _nftsToTransfer, 
-            bool exactChange, 
-            uint256 tokenValueToExchange, 
-            uint256 remainingUnits) = calculateFromTokensOwned(
-                from_,
-                nftsToTransfer
-            );
-            if (exactChange != true) {
-                // make this block another function
-                // first withdraw the token that sender needs change for
-                _withdrawAndStoreERC721(from_, tokenValueToExchange);
-                // calculate units needed to make sender whole
-                uint256 changeNeeded = tokenValueToExchange - remainingUnits;
-                // calculate the quantity of each denomination to retrieve for sender
-                uint256[] memory quantitiesToRetrieveOrMint = calculateTokens(changeNeeded);
-                    
-                    for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
-                        uint256 q;
-                        uint256 _tV;
-                        
-                        unchecked {
-                            q = quantitiesToRetrieveOrMint[i];
-                          _tV = tokenValues[i];
-                        }  
-
-                        if (q > 0) {
-
-                            for (uint256 j = 0; j < q; ) {
-
-                                unchecked {
-                                _retrieveOrMintERC721(from_, _tV);
-                                ++j;
-                                }
-                            }
-                        }
-                        
-                        unchecked {
-                        ++i;
-                        }
-                    }
-
-                    
-                
-            uint256[] memory quantitiesToRetrieveOrMintTo = calculateTokens(remainingUnits);
-                for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
-                    uint256 q = quantitiesToRetrieveOrMintTo[i];
-                    uint256 _tV = tokenValues[i];
-
-                    if (q > 0) {
-
-                        for (uint256 j = 0; j < q; ) {
-                            _retrieveOrMintERC721(to_, _tV);
-                        }
-                    }
-                }
-
-            }
-
-            // Loop through each token value
-            for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
-                uint256 quantity = _nftsToTransfer[i];
-                uint256 _tokenValue = tokenValues[i];
-
-                // If quantity is zero, no need to call _withdrawAndStore
-                if (quantity > 0) {
-                    // Loop 'quantity' times for this token value
-                    for (uint256 j = 0; j < quantity; ) {
-                        uint256 _id = getNextId(from_, _tokenValue);
-                        // Call _withdrawAndStoreERC721 for each quantity
-                        _transferERC721(from_,to_, _id);
-                        unchecked {
-                            ++j;
-                        }
-                    }
-                }
-                unchecked {
-                    ++i;
-                }
-            }
-*/
-            if (
-                erc20BalanceOfSenderBefore /
-                    units -
-                    erc20BalanceOf(from_) /
-                    units >
-                nftsToTransfer
-            ) {
-                _withdrawAndStoreERC721(from_, LOOSIES);
-            }
-
-            // Then, check if the transfer causes the receiver to gain a whole new token which requires gaining
-            // an additional ERC-721. In the case of cigarette tokens, it will be a LOOSIE
-            //
-            // Process:
-            // Take the difference between the whole number of tokens before and after the transfer for the recipient.
-            // If that difference is greater than the number of ERC-721s transferred (whole units), then there was
-            // an additional ERC-721 gained due to the fractional portion of the transfer.
-            // Again, for self-sends where the before and after balances are equal, no ERC-721s will be gained here.
-            if (
-                erc20BalanceOf(to_) /
-                    units -
-                    erc20BalanceOfReceiverBefore /
-                    units >
-                nftsToTransfer
-            ) {
-                _retrieveOrMintERC721(to_, LOOSIES);
-            }
-        }
         return true;
-    }
+    }    
+
+
+    /// @dev create an event for the successful retrieval of change 
+    function getChange(
+        address _to,
+        uint256 _changeOwed
+      ) internal {
+        uint256[] memory _tokensToRetrieveOrMintForSender = calculateTokens(_changeOwed);
+
+        // Loop through each token value & check change owed in loop condition
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES && _changeOwed > 0; ) {
+            uint256 _quantity = _tokensToRetrieveOrMintForSender[i];
+            uint256 _tokenValue = tokenValues[i]; // Directly use the value from the array
+
+            // If _quantity is zero, no need to call _retrieveOrMintERC721
+            if (_quantity > 0) {
+                // Loop '_quantity' times for this token value
+                for (uint256 j = 0; j < _quantity && _changeOwed >= _tokenValue; ) {
+                    // Call _retrieveOrMintERC721 for each quantity
+                    _retrieveOrMintERC721(_to, _tokenValue);
+                    // Update change owed
+                    _changeOwed -= _tokenValue;
+                    unchecked { ++j; }
+                    }
+                }
+            unchecked { ++i; }
+            }
+
+        }
+
+    
+
+    
 
     /// @dev function is modified from Pandora's 404 to use idsOfValue Deque and include tokenValue as param
     /// @param to_ is the address to send stored or minted tokens
@@ -733,8 +454,9 @@ contract TheCowboy is Ownable, ERC404 {
             if (minted == type(uint256).max) {
                 revert MintLimitReached();
             }
+            id = ID_ENCODING_PREFIX + minted;
         }
-        id = ID_ENCODING_PREFIX + minted;
+        
 
         address erc721Owner = _getOwnerOf(id);
 
@@ -783,108 +505,100 @@ contract TheCowboy is Ownable, ERC404 {
     function calculateTokens(
         uint256 _units
     ) internal view returns (uint256[] memory) {
-        uint256[] memory tokensToRetrieveOrMint = new uint256[](
+        uint256[] memory nftsToRetrieveOrMint = new uint256[](
             NUM_TOKEN_VALUES
         );
         uint256 remainingUnits = _units;
 
         // Calculate the number of units to retrieve or mint for each token value
         for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
-            tokensToRetrieveOrMint[i] = remainingUnits / tokenValues[i];
+            nftsToRetrieveOrMint[i] = remainingUnits / tokenValues[i];
             remainingUnits %= tokenValues[i];
             unchecked {
                 ++i;
             }
         }
 
-        return tokensToRetrieveOrMint;
+        return nftsToRetrieveOrMint;
     }
-/*
-    /// @dev takes a quantity of units and builds list of tokens to withdraw from address
-    /// this is helpful because it is possible for an address to have spare change in terms
-    /// of token denominations
-    /// @param owner_ is address to calculate tokens from
-    /// @param units_ is whole ERC20s to calculate from
-    function calculateFromTokensOwned(
-        address owner_,
-        uint256 units_
-    ) internal view returns (uint256[] memory, bool) {
-        uint256[] memory tokensToWithdraw = new uint256[](NUM_TOKEN_VALUES);
-        uint256 remainingUnits = units_;
-        uint256[] memory ownerBalances = getNominalBalances(owner_);
-        bool canFulfillExactWithdrawal = true;
 
-        for (uint256 i = 0; i < tokenValues.length; ) {
-            uint256 maxTokensPossible = remainingUnits / tokenValues[i];
-            uint256 tokensToActuallyWithdraw = (ownerBalances[i] <
-                maxTokensPossible)
-                ? ownerBalances[i]
-                : maxTokensPossible;
+    function batchWithdrawAndStore(
+        address from_,
+        uint256 units_,
+        uint256 balanceOfSenderBefore
+      ) internal {
+        uint256 nftsToWithdrawAndStore = units_;
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES && nftsToWithdrawAndStore > 0;) {
+            uint256 _tokenValue = tokenValues[i];
+            uint256[] memory ids = getOwnedOfValue(from_, _tokenValue);
+            
+            if (ids.length != 0) {
+                // Determine how many ERC721 to withdraw
+                uint256 tokens = nftsToWithdrawAndStore / _tokenValue;
+                
+                for (uint256 j = 0; j < tokens && nftsToWithdrawAndStore >= _tokenValue;) {
+                    _withdrawAndStoreERC721(from_, _tokenValue);
+                    nftsToWithdrawAndStore -= _tokenValue;
+                    unchecked { ++j; }
+                }
 
-            tokensToWithdraw[i] = tokensToActuallyWithdraw;
-            remainingUnits -= tokensToActuallyWithdraw * tokenValues[i];
+                // Check if change will be needed to cover remaining tokens
+                if (balanceOfSenderBefore / units_ - (_tokenValue * ids.length) < nftsToWithdrawAndStore && nftsToWithdrawAndStore > 0) {
+                    // Withdraw ERC721 to cover the last part of change
+                    _withdrawAndStoreERC721(from_, _tokenValue);
+                    
+                    // Calculate change owed to sender by subtracting remaining from value of token spent
+                    uint256 changeOwedToSender = _tokenValue > nftsToWithdrawAndStore ? _tokenValue - nftsToWithdrawAndStore : 0;
+                    
+                    // Get change for the sender
+                    getChange(from_, changeOwedToSender);
+                }
+            }
 
-            if (remainingUnits == 0) break;
+            unchecked { ++i; }
+        }
+    }
+
+
+    function batchTransferERC721(
+        address from_,
+        address to_,
+        uint256 nftsToTransfer,
+        uint256 erc20BalanceOfSenderBefore
+      ) internal {
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES && nftsToTransfer > 0;) {
+            uint256 _tokenValue = tokenValues[i];
+            uint256[] memory ids = getOwnedOfValue(from_, _tokenValue);
+
+            if (ids.length != 0) {
+                uint256 quantity = nftsToTransfer / _tokenValue;
+                for (uint256 j = 0; j < quantity && nftsToTransfer >= _tokenValue;) {
+                    uint256 tokenId = ids[ids.length - 1 - j]; // Ensure index is valid
+                    _transferERC721(from_, to_, tokenId);
+                    nftsToTransfer -= _tokenValue;
+                    unchecked { ++j; }
+                }
+          
+                // check if change will be needed to cover remaining tokens before moving on to next tokenValue
+                uint256 valueOfTokens = _tokenValue * (ids.length); 
+                if (erc20BalanceOfSenderBefore / units - valueOfTokens < nftsToTransfer) {
+                    // get change to cover 
+                    _withdrawAndStoreERC721(from_, _tokenValue);
+                    // update remaining tokens to withdraw
+                    uint256 changeOwedToSender = _tokenValue - nftsToTransfer;
+                    getChange(from_, changeOwedToSender);
+                }
+
+            }
             unchecked {
                 ++i;
             }
         }
-
-        // If there are remaining units after trying to withdraw the maximum possible,
-        // it means the withdrawal request cannot be fulfilled exactly.
-        // Adjust the function to return all balances owned by the owner instead.
-        if (remainingUnits > 0) {
-            canFulfillExactWithdrawal = false;
-            for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
-                // Set tokensToWithdraw to owner's available balances
-                // to withdraw all owned ERC721s.
-                tokensToWithdraw[i] = ownerBalances[i];
-            }
-        }
-
-        // The function now also returns a boolean indicating whether the exact withdrawal request can be fulfilled.
-        return (tokensToWithdraw, canFulfillExactWithdrawal);
-    }
-    */
-
-   function calculateFromTokensOwned(
-        address owner_,
-        uint256 units_
-    ) internal view returns (
-        uint256[] memory tokensToWithdraw, 
-        bool canFulfillExactWithdrawal, 
-        uint256 getChangeFor, 
-        uint256 remainingUnits
-    ) {
-        tokensToWithdraw = new uint256[](NUM_TOKEN_VALUES);
-        remainingUnits = units_;
-        uint256[] memory ownerBalances = getNominalBalances(owner_);
-        canFulfillExactWithdrawal = true;
-        getChangeFor = 0; // Assuming 0 is an invalid ID and indicates no additional token is required.
-
-        for (uint256 i = 0; i < tokenValues.length; i++) {
-            uint256 maxTokensPossible = remainingUnits / tokenValues[i];
-            uint256 tokensToActuallyWithdraw = (ownerBalances[i] < maxTokensPossible) ? ownerBalances[i] : maxTokensPossible;
-
-            tokensToWithdraw[i] = tokensToActuallyWithdraw;
-            remainingUnits -= tokensToActuallyWithdraw * tokenValues[i];
-
-            if (remainingUnits == 0) break;
-        }
-
-        if (remainingUnits > 0) {
-            canFulfillExactWithdrawal = false;
-
-            // Attempt to cover the shortfall by considering an additional token from the previously processed category.
-            if (tokenValues.length > 0 && ownerBalances[0] > 0) {
-                getChangeFor = tokenValues[0]; // Use the first category's value as an example; adjust based on your logic.
-                // Note: Adjust the logic here based on your application's needs.
-            }
-        }
-
-        return (tokensToWithdraw, canFulfillExactWithdrawal, getChangeFor, remainingUnits);
     }
 
+
+
+    
 
 
     /// @notice Function to reinstate balance on exemption removal

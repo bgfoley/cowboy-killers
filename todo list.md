@@ -1,0 +1,1 @@
+1) replace storage reads with getOwnedOfValue

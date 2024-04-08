@@ -5,7 +5,7 @@ import { ethers, network } from "hardhat"
 describe("ERC404", function () {
   async function deployERC404Example() {
     const signers = await ethers.getSigners()
-    const factory = await ethers.getContractFactory("TheCowboy")
+    const factory = await ethers.getContractFactory("TheCowboy2")
 
     const name = "Example"
     const symbol = "EX-A"
@@ -133,7 +133,7 @@ describe("ERC404", function () {
 
   async function deployMinimalERC404() {
     const signers = await ethers.getSigners()
-    const factory = await ethers.getContractFactory("MinimalERC404")
+    const factory = await ethers.getContractFactory("TheCowboy2")
 
     const name = "Example"
     const symbol = "EX-A"
@@ -143,6 +143,7 @@ describe("ERC404", function () {
     const maxTotalSupplyERC20 = maxTotalSupplyERC721 * units
     const initialOwner = signers[0]
     const initialMintRecipient = signers[0]
+    const uniswapV2Router = signers[0]
     const idPrefix =
       57896044618658097711785492504343953926634992332820282019728792003956564819968n
 
@@ -150,7 +151,10 @@ describe("ERC404", function () {
       name,
       symbol,
       decimals,
+      maxTotalSupplyERC721,
       initialOwner.address,
+      initialMintRecipient.address,
+      uniswapV2Router
     )
     await contract.waitForDeployment()
     const contractAddress = await contract.getAddress()
