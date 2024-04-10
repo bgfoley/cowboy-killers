@@ -698,8 +698,8 @@ abstract contract ERC404 is IERC404 {
             revert InvalidRecipient();
         }
 
-        uint256 id;
-
+       uint256 id;
+ 
         if (!_storedERC721Ids.empty()) {
             // If there are any tokens in the bank, use those first.
             // Pop off the end of the queue (FIFO).
