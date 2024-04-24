@@ -3,15 +3,15 @@
 pragma solidity ^0.8.20;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-import {DoubleEndedQueue} from "../lib/DoubleEndedQueue.sol";
-import {ERC404} from "../ERC404.sol";
-import {ERC721Events} from "../lib/ERC721Events.sol";
-import {ERC20Events} from "../lib/ERC20Events.sol";
+import {DoubleEndedQueue} from "./lib/DoubleEndedQueue.sol";
+import {ERC404} from "./ERC404.sol";
+import {ERC721Events} from "./lib/ERC721Events.sol";
+import {ERC20Events} from "./lib/ERC20Events.sol";
 
 
-contract Minimal404Marlboro is Ownable, ERC404 {
+contract ERC404TVExtNew is Ownable, ERC404 {
     using DoubleEndedQueue for DoubleEndedQueue.Uint256Deque;
-    ///@dev deque for each token value for easy storage and retrieval
+    /// @dev deque for each token value for easy storage and retrieval
     mapping(uint256 => DoubleEndedQueue.Uint256Deque) private _storedERC721sByValue;
     using Strings for uint256;
     
@@ -20,25 +20,25 @@ contract Minimal404Marlboro is Ownable, ERC404 {
     mapping(uint256 => string) internal _tokenURIs;
     
     ///@dev set token values constant for efficiency
-    uint256 private constant MARLBORO_MEN = 600;
+ // uint256 private constant MARLBORO_MEN = 600;
     uint256 private constant CARTONS = 200;
     uint256 private constant PACKS = 20;
     uint256 private constant LOOSIES = 1;
-    uint256 private constant NUM_TOKEN_VALUES = 4;
+    uint256 private constant NUM_TOKEN_VALUES = 2;
 
     /// @dev prefixes for different token values 
-    uint256 public constant PREFIX_MARLBORO_MEN = (1 << 255) | (0 << 253);
+ //   uint256 public constant PREFIX_MARLBORO_MEN = (1 << 255) | (0 << 253);
     uint256 public constant PREFIX_CARTONS = (1 << 255) | (1 << 253);
     uint256 public constant PREFIX_PACKS = (1 << 255) | (2 << 253);
-    uint256 public constant PREFIX_LOOSIES = (1 << 255) | (3 << 253);
+ //   uint256 public constant PREFIX_LOOSIES = (1 << 255) | (3 << 253);
 
     /// @notice tokenValues is an index of token values
     /// @dev token value index needs to be in descending order, largest to smallest for calculations to work
     uint256[NUM_TOKEN_VALUES] public tokenValues = [
-        MARLBORO_MEN,
+ //       MARLBORO_MEN,
         CARTONS,
-        PACKS,
-        LOOSIES
+        PACKS
+  //      LOOSIES
     ];
     
   
@@ -60,11 +60,14 @@ contract Minimal404Marlboro is Ownable, ERC404 {
 
     function erc721TotalSupply() public view override returns (uint256) {
         uint256 erc721Supply = 0;
-        unchecked {
-            for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
+        
+            for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
                 erc721Supply += _mintedOfValue[tokenValues[i]];
+                unchecked {
+                ++i;
+                }
             }
-        }
+        
         return erc721Supply;
     }
 
@@ -75,19 +78,23 @@ contract Minimal404Marlboro is Ownable, ERC404 {
         returns (uint256) 
     {
         uint256[] memory ownedTokens = _owned[tokenHolder_];
+        uint256 listLength = ownedTokens.length;
         uint256 tokenCount = 0;
 
         // Count tokens of the specified value
-        for (uint256 i = 0; i < ownedTokens.length; i++) {
+        for (uint256 i = 0; i < listLength; ) {
             if (getTokenValueFromId(ownedTokens[i]) == tokenValue_) {
                 tokenCount++;
+                }
+            unchecked {
+            ++i;
             }
         }
 
         return tokenCount;
     }
 
-
+/*
 
     function getNominalBalances(address tokenHolder_) 
         public 
@@ -95,105 +102,61 @@ contract Minimal404Marlboro is Ownable, ERC404 {
         returns (uint256[] memory) 
     {
         uint256[] memory ownedTokens = _owned[tokenHolder_];
-        uint256 marlboroManCount;
+        uint256 listLength = ownedTokens.length;
+ //       uint256 marlboroManCount;
         uint256 cartonCount;
         uint256 packCount;
-        uint256 loosieCount;
+//uint256 loosieCount;
 
         // First, count tokens in each category to allocate memory
-        for (uint256 i = 0; i < ownedTokens.length; i++) {
+        for (uint256 i = 0; i < listLength; ) {
             uint256 value = getTokenValueFromId(ownedTokens[i]);
-            if (value == MARLBORO_MEN) marlboroManCount++;
-            else if (value == CARTONS) cartonCount++;
-            else if (value == PACKS) packCount++;
-            else if (value == LOOSIES) loosieCount++;
+               if (value == MARLBORO_MEN) marlboroManCount++;
+                else  if (value == CARTONS) cartonCount++;
+                else if (value == PACKS) packCount++;
+//                else if (value == LOOSIES) loosieCount++;
+            unchecked {
+            ++i;
+            }
         }
         // Set the counts in the nominalBalances array and return it
-        uint256[] memory nominalBalances = new uint256[](4);
-        nominalBalances[0] = marlboroManCount;
-        nominalBalances[1] = cartonCount;
-        nominalBalances[2] = packCount;
-        nominalBalances[3] = loosieCount;
+       uint256[] memory nominalBalances = new uint256[](4);
+//nominalBalances[0] = marlboroManCount;
+        nominalBalances[0] = cartonCount;
+        nominalBalances[1] = packCount;
+        nominalBalances[2] = loosieCount;
 
         return nominalBalances;
     }
 
- 
-    
+*/
+
+
     function getOwnedTokensOfValue(
         address tokenHolder_, 
-        uint256 tokenValue_ // This is now an index referring to the position in the tokenValues array
-      ) public view returns (uint256[] memory tokensOfCategory) {
-
-        uint256 count = 0;
-        uint256[] memory ownedTokens = _owned[tokenHolder_];
-        // First, count the tokens of the specified category to allocate memory efficiently
-        for (uint256 i = 0; i < ownedTokens.length; i++) {
-            if (getTokenValueFromId(ownedTokens[i]) == tokenValue_) {
-                count++;
-            }
-        }
-
-        // Allocate memory for the array
-        tokensOfCategory = new uint256[](count);
-
+        uint256 tokenValue_
+    ) public view returns (uint256[] memory tokensOfValueCategory) {
+        // Retrieve the total count of tokens of the specified value
+        uint256 tokenCount = getBalanceOfTokenValue(tokenHolder_, tokenValue_);
+        
+        // Allocate memory for the array with the exact count
+        tokensOfValueCategory = new uint256[](tokenCount);
+        
         // Fill the array
         uint256 index = 0;
-        for (uint256 i = 0; i < ownedTokens.length; i++) {
+        uint256[] memory ownedTokens = _owned[tokenHolder_];
+        uint256 listLength = ownedTokens.length;
+        for (uint256 i = 0; i < listLength; ) {
             uint256 tokenId = ownedTokens[i];
             if (getTokenValueFromId(tokenId) == tokenValue_) {
-                tokensOfCategory[index++] = tokenId;
+                tokensOfValueCategory[index++] = tokenId;
+            }
+            unchecked {
+            ++i;
             }
         }
 
-        return tokensOfCategory;
-    }
-
-
-
-    /// @notice view to sort owned tokens by value
-    function getAllOwnedTokensSorted(address tokenHolder_) 
-        public 
-        view 
-        returns (
-            uint256[] memory marlboroMen, 
-            uint256[] memory cartons, 
-            uint256[] memory packs, 
-            uint256[] memory loosies
-        ) 
-      {
-        // Assume getNominalBalances() has been implemented to return the counts as expected
-        uint256[] memory nominalBalances = getNominalBalances(tokenHolder_);
-        
-        // Allocate memory for arrays based on counts from getNominalBalances
-        marlboroMen = new uint256[](nominalBalances[0]);
-        cartons = new uint256[](nominalBalances[1]);
-        packs = new uint256[](nominalBalances[2]);
-        loosies = new uint256[](nominalBalances[3]);
-
-        uint256 marlboroManIndex = 0;
-        uint256 cartonIndex = 0;
-        uint256 packIndex = 0;
-        uint256 loosieIndex = 0;
-        uint256[] memory ownedTokens = _owned[tokenHolder_];
-
-        // Sort tokens into their respective arrays
-        for (uint256 i = 0; i < ownedTokens.length; i++) {
-            uint256 tokenId = ownedTokens[i];
-            uint256 value = getTokenValueFromId(tokenId);
-
-            if (value == MARLBORO_MEN) {
-                marlboroMen[marlboroManIndex++] = tokenId;
-            } else if (value == CARTONS) {
-                cartons[cartonIndex++] = tokenId;
-            } else if (value == PACKS) {
-                packs[packIndex++] = tokenId;
-            } else if (value == LOOSIES) {
-                loosies[loosieIndex++] = tokenId;
-            }
-        }
-
-        return (marlboroMen, cartons, packs, loosies);
+        return tokensOfValueCategory;
     }
 
    
@@ -203,10 +166,10 @@ contract Minimal404Marlboro is Ownable, ERC404 {
 
 
         // Compare the extracted prefix against known prefixes to determine the value
-        if (prefix == PREFIX_MARLBORO_MEN) return MARLBORO_MEN;
+ //       if (prefix == PREFIX_MARLBORO_MEN) return MARLBORO_MEN;
         if (prefix == PREFIX_CARTONS) return CARTONS;
         if (prefix == PREFIX_PACKS) return PACKS;
-        if (prefix == PREFIX_LOOSIES) return LOOSIES;
+//        if (prefix == PREFIX_LOOSIES) return LOOSIES;
         
         revert("Invalid token ID");
     }
@@ -238,8 +201,9 @@ contract Minimal404Marlboro is Ownable, ERC404 {
                 tokenValue
             ];
             // Sum the lengths
-            unchecked {
-                totalLength += deque.length();
+            totalLength += deque.length();
+                unchecked {
+            ++i;
             }
         }
     }
@@ -276,14 +240,14 @@ contract Minimal404Marlboro is Ownable, ERC404 {
         string memory baseURI;
 
         // Determine the appropriate directory based on the token value
-        if (valueOfId == LOOSIES) {
+ /*       if (valueOfId == LOOSIES) {
             baseURI = "https://example.com/loosies/";
-        } else if (valueOfId == PACKS) {
+        } else */ if (valueOfId == PACKS) {
             baseURI = "https://example.com/packs/";
         } else if (valueOfId == CARTONS) {
             baseURI = "https://example.com/cartons/";
-        } else if (valueOfId == MARLBORO_MEN) {
-            baseURI = "https://example.com/marlboro_men/";
+   //     } else if (valueOfId == MARLBORO_MEN) {
+   //         baseURI = "https://example.com/marlboro_men/";
         } else {
             revert("Invalid token value");
         }
@@ -379,14 +343,12 @@ contract Minimal404Marlboro is Ownable, ERC404 {
     /// @notice Function to reinstate balance on exemption removal
     function _reinstateERC721Balance(address target_) internal override {
         uint256 erc20Balance = erc20BalanceOf(target_) / units;
-        
-        uint256[] memory expectedERC721Balances = calculateTokens(erc20Balance);
-        uint256[] memory actualERC721Balances = getNominalBalances(target_);
     
 
         for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
-            uint256 expectedBalance = expectedERC721Balances[i];
-            uint256 actualERC721Balance = actualERC721Balances[i];
+            uint256 tokenValue = tokenValues[i];
+            uint256 expectedBalance = balanceOf[target_] / tokenValue;
+            uint256 actualERC721Balance = getBalanceOfTokenValue(target_, tokenValue);
             uint256 tokensToRetrieveOrMint = expectedBalance - actualERC721Balance;
 
             for (uint256 j = 0; j < tokensToRetrieveOrMint; ) {
@@ -402,6 +364,34 @@ contract Minimal404Marlboro is Ownable, ERC404 {
             }    
         }
     }
+
+/// needs to burn or withdraw and store excess
+     // Update ERC721 Balance turns loose change into exact
+    /// @notice Function to reinstate balance on exemption removal
+    function updateERC721Balance(address target_) internal {
+        uint256 erc20Balance = erc20BalanceOf(target_) / units;
+    
+
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
+            uint256 tokenValue = tokenValues[i];
+            uint256 expectedBalance = balanceOf[target_] / tokenValue;
+            uint256 actualERC721Balance = getBalanceOfTokenValue(target_, tokenValue);
+            uint256 tokensToRetrieveOrMint = expectedBalance - actualERC721Balance;
+
+            for (uint256 j = 0; j < tokensToRetrieveOrMint; ) {
+            
+                // Transfer ERC721 balance in from pool
+                _retrieveOrMintERC721(target_);
+                    unchecked {
+                        ++j;
+                    }
+                }
+            unchecked {
+                ++i;
+            }    
+        }
+    }
+
 
 
 
@@ -428,8 +418,8 @@ contract Minimal404Marlboro is Ownable, ERC404 {
             
                 uint256 tokensToRetrieveOrMint = (balanceOf[to_] / units) -
                 (erc20BalanceOfReceiverBefore / units);
-            // Handles batch of ERC721s
-            _retrieveOrMintBatch(to_, tokensToRetrieveOrMint);
+                // Handles batch of ERC721s
+                _retrieveOrMintBatch(to_, tokensToRetrieveOrMint);
         
         // Case 3) Recipient is ERC721 transfer exempt, but sender is not. Use loopTowithDrawAndStoreBatch
         } else if (isToERC721TransferExempt) {
@@ -440,6 +430,7 @@ contract Minimal404Marlboro is Ownable, ERC404 {
             // Mixed purpose function, use zero address as placeholder for to_
             // Set bool isTransfer to false
             _batchTransferOrWithdrawAndStoreERC721(from_, address(0), tokensToWithdrawAndStore, false);
+        
         } else {
             
             // Case 4) niether are ERC721 exempt 
@@ -493,133 +484,193 @@ contract Minimal404Marlboro is Ownable, ERC404 {
         return true;
     }
 
-
-    /// @notice Function to handle internal logic for bulk transfers of ERC721 tokens that occurs
-    /// with transferERC20WithERC721 
-    /// @param from_ is sender
-    /// @param to_ is receipient. For withdrawAndStore, zero address used as placeholer
-    /// @param amountInUnits_ is the native value of the transfer
+  
+    
+    
     function _batchTransferOrWithdrawAndStoreERC721(
-        address from_,
-        address to_, 
-        uint256 amountInUnits_,
+        address from_, // sender
+        address to_,  // receiver -- if isTransfer = false, this is set to the zero address and not used
+        uint256 amountInUnits_, // underlying units to transfer - these are like single dollar bills
         bool isTransfer // true for transfer, false for withdraw and store
-      ) internal {
+    ) internal {
+        uint256 unitsToTransfer = amountInUnits_; // Amount in dollars to transfer
+        bool needsChange = false; // Flag to indicate if we need to break into smaller tokens for change
 
-
-        // At this point sender's erc20 balance has been reduced by the amount of the transfer - 
-        // their erc20 balance before transfer will help them retrieve exact change
-        uint256 senderNativeBalanceBefore = (balanceOf[from_]) / units + amountInUnits_;
-        
-        // Counter
-        uint256 unitsToTransfer = amountInUnits_;
-
-        // Use greedy algo logic to withdraw token values from greatest > to least
-        for (uint256 i = 0; i < NUM_TOKEN_VALUES && unitsToTransfer > 0;) {
-            uint256 tokenValue_ = tokenValues[i];
-
-             // Get from_ balance of selected token value
-            uint256 balance = getBalanceOfTokenValue(from_, tokenValue_);
-
-
-            // Check if senders has enough tokens of lesser value to complete transfer. If not, get change.
-            if (tokenValue_ >= unitsToTransfer 
-                && (senderNativeBalanceBefore - (
-                    balance * tokenValue_) < unitsToTransfer)) {
-
-                
-                if (isTransfer && tokenValue_ == unitsToTransfer) {
-                    // If isTransfer is true and tokenValue equals unitsToTransfer, 
-                    
-                    // Get token id to transfer
-                    uint256[] memory ownedTokens = 
-                      getOwnedTokensOfValue(from_, tokenValue_);
-                    
-                    uint256 id = ownedTokens.length - 1;  
-                    
-                    // perform a direct transfer of the ERC721 token.
-                    _transferERC721(from_, to_, id);
-
-                    // Update remaining units to transfer
-                    unitsToTransfer -= tokenValue_;    
-                } else {
-                    
-                    // Otherwise, withdraw ERC721 to the bank and get exact change
-                    _withdrawAndStoreERC721(from_, tokenValue_);
-
-                    // Check if there's a non-zero change owed to the sender.
-                    // If so, get change. Do not update unitsToTransfer as this will be done 
-                    // in subsequent loops with exact change
-                    if (tokenValue_ != unitsToTransfer) {
-                        uint256 changeOwedToSender = tokenValue_ - unitsToTransfer;
-                        _retrieveOrMintBatch(from_, changeOwedToSender);
-                   
-                    // If no change is needed and no unitsRemaining to transfer, update remainingUnits
-                     } else {
-                        unitsToTransfer -= tokenValue_;
-                     }
-                }
-            
-                 
-             } else if (tokenValue_ < unitsToTransfer) {
-                
-                // Determine how many ERC721 to withdraw
-                uint256 tokens = unitsToTransfer / tokenValue_;
-                
-                // Use the greater of the two values, otherwise will not have enough for transfer
-                uint256 tokensToMove = balance >= tokens ? tokens : balance;
-
-                // Transfer tokensToMove one at a time
-                for (uint256 j = 0; j < tokensToMove; /* increment inside the loop body */) {
-                    if (isTransfer) {
-                        // If isTransfer is true, transfer the ERC721 token
-                        _transferERC721(from_, to_, tokenValue_);
-                    } else {
-                        // If isTransfer is false, withdraw and store the ERC721 token
-                        _withdrawAndStoreERC721(from_, tokenValue_);
-                    }
-
-                    // Increment j inside an unchecked block to avoid overflow checks
-                    unchecked {
-                        j++;
-                    }
-                    // Update remaining unitsToTransfer
-                    unitsToTransfer -= (tokensToMove * tokenValue_);
-
-                }
-            
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
+            if (unitsToTransfer == 0) {
+                break; // If no units are left to transfer, we are done.
             }
 
-        unchecked { ++i; }
+            uint256 tokenValue_ = tokenValues[i];
+            uint256 balance = getBalanceOfTokenValue(from_, tokenValue_);
+
+            if (balance == 0) {
+                i++;
+                continue;
+            }
+
+            // Skip to the next denomination if the current one is too large and we're not yet breaking for change
+            if (tokenValue_ > unitsToTransfer && !needsChange) {
+                i++;
+                continue;
+            } else if (needsChange && tokenValue_ > unitsToTransfer) {
+                // Logic to break the first available larger bill into smaller denominations if needed
+                _withdrawAndStoreERC721(from_, tokenValue_);
+
+                uint256 changeNeeded = tokenValue_ - unitsToTransfer;
+
+                // Get change
+                _retrieveOrMintBatch(from_, changeNeeded);
+
+                // If transfer, complete the transaction for to_
+                if (isTransfer) {_retrieveOrMintBatch(to_, unitsToTransfer);}
+
+                break;
+            }
+
+            // Identify the need for change and attempt to break a larger denomination
+            if (i == NUM_TOKEN_VALUES - 1 && unitsToTransfer > 0) {
+                needsChange = true;
+                i = 0; // Reset to start searching for a denomination to break
+                continue;
+            }
+
+            uint256 tokensToMove = (balance < unitsToTransfer / tokenValue_) ? balance : (unitsToTransfer / tokenValue_);
+            
+            
+            for (uint256 j = 0; j < tokensToMove; ) {
+                if (isTransfer) {
+                    uint256[] memory ownedTokens = getOwnedTokensOfValue(from_, tokenValue_);
+                    uint256 id = ownedTokens[ownedTokens.length - 1]; // Get the last token to transfer
+                    _transferERC721(from_, to_, id);
+                } else {
+                    _withdrawAndStoreERC721(from_, tokenValue_);
+                }
+                unitsToTransfer -= tokenValue_;
+                    unchecked {
+                ++i;
+                }
+            }
+
+
+            if (!needsChange || balance >= tokensToMove) {
+                i++; // Increment only if not in change mode or if tokens have been used
+            }
         }
     }
 
+/*
+    
+    // Original
     function _retrieveOrMintBatch(
-            address to_,
-            uint256 amountInUnits_
-        ) internal {
-            uint256[] memory _tokensToRetrieveOrMint = calculateTokens(amountInUnits_);
+        address to_,
+        uint256 amountInUnits_
+    ) internal {
+        // Loop through each token value & retrieve or mint the correct number of tokens
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES && amountInUnits_ > 0; ) {
+            uint256 _tokenValue = tokenValues[i];
+            uint256 _quantity = amountInUnits_ / _tokenValue;
+            
 
-            // Loop through each token value & check change owed in loop condition
-            for (uint256 i = 0; i < NUM_TOKEN_VALUES && amountInUnits_ > 0; ) {
-                uint256 _quantity = _tokensToRetrieveOrMint[i];
-                uint256 _tokenValue = tokenValues[i]; // Directly use the value from the array
-
-                // If _quantity is zero, no need to call _retrieveOrMintERC721
-                if (_quantity > 0) {
-                    // Loop '_quantity' times for this token value
-                    for (uint256 j = 0; j < _quantity && amountInUnits_ >= _tokenValue; ) {
-                        // Call _retrieveOrMintERC721 for each quantity
-                        _retrieveOrMintERC721(to_, _tokenValue);
-                        // Update change owed
-                        amountInUnits_ -= _tokenValue;
-                        unchecked { ++j; }
-                    }
+            // If _quantity is zero, no need to call _retrieveOrMintERC721
+            if (_quantity > 0) {
+                // Loop '_quantity' times for this token value
+                for (uint256 j = 0; j < _quantity && amountInUnits_ >= _tokenValue; ) {
+                    // Call _retrieveOrMintERC721 for each quantity
+                    _retrieveOrMintERC721(to_, _tokenValue);
+                    // Update change owed
+                    amountInUnits_ -= _tokenValue;
+                    unchecked { ++j; }
                 }
-                unchecked { ++i; }
             }
+            unchecked { ++i; }
+        }
 
     }
+*/
+/*
+    // Experimental
+    function _retrieveOrMintBatch(
+        address to_,
+        uint256 amountInUnits_
+    ) internal {
+        // Loop through each token value & retrieve or mint the correct number of tokens
+        uint256 marlboroMen = amountInUnits_ / (MARLBORO_MEN * units);
+        uint256 remainder = amountInUnits_ % (MARLBORO_MEN * units);
+        uint256 cartons = amountInUnits_ / (CARTONS * units);
+        remainder = amountInUnits_ % (CARTONS * units);
+        uint256 packs = remainder / (PACKS * units);
+        remainder = remainder % (PACKS * units);
+        uint256 loosies = remainder / units;     
+       
+        for (uint256 i = 0; i < marlboroMen; ) {
+            // Call _retrieveOrMintERC721 for each quantity
+            _retrieveOrMintERC721(to_, MARLBORO_MEN);
+            unchecked { ++i; }
+        }
+        
+        for (uint256 i = 0; i < cartons; ) {
+            // Call _retrieveOrMintERC721 for each quantity
+            _retrieveOrMintERC721(to_, CARTONS);
+            unchecked { ++i; }
+        }
+        
+        for (uint256 i = 0; i < packs; ) {
+            // Call _retrieveOrMintERC721 for each quantity
+            _retrieveOrMintERC721(to_, PACKS);
+            unchecked { ++i; }
+        }
+        for (uint256 i = 0; i < loosies; ) {
+            // Call _retrieveOrMintERC721 for each quantity
+            _retrieveOrMintERC721(to_, LOOSIES);
+            unchecked { ++i; }
+        }
+    }        
+ */
+    function _retrieveOrMintBatch(
+        address to_,
+        uint256 amountInUnits_
+    ) internal {
+ //       uint256 marlboroMenBatches = amountInUnits_ / MARLBORO_MEN;
+ //       uint256 remainder = amountInUnits_ % MARLBORO_MEN;
+        uint256 cartonsBatches = amountInUnits_ / CARTONS;
+        uint256 remainder = amountInUnits_ % CARTONS;
+        uint256 packsBatches = remainder / PACKS;
+//        remainder = remainder % PACKS;
+ //       uint256 loosiesBatches = remainder / units;
+
+ //       for (uint256 i = 0; i < marlboroMenBatches; i++) {
+ //           _retrieveOrMintERC721(to_, MARLBORO_MEN);
+ //       }
+        
+        for (uint256 i = 0; i < cartonsBatches; i++) {
+            _retrieveOrMintERC721(to_, CARTONS);
+        }
+        
+        for (uint256 i = 0; i < packsBatches; i++) {
+            _retrieveOrMintERC721(to_, PACKS);
+        }
+
+ //       for (uint256 i = 0; i < loosiesBatches; i++) {
+   //         _retrieveOrMintERC721(to_, LOOSIES);
+   //     }
+    }
+
+        
+/*
+        function _updateNFTRepresentation(address account, uint256 erc20Balance) private {
+        uint256 twoHundreds = erc20Balance / (CARTONS * (10 ** decimals()));
+        uint256 remainder = erc20Balance % (CARTONS * (10 ** decimals()));
+        uint256 twenties = remainder / (TWENTY_DOLLARS * (10 ** decimals()));
+        remainder = remainder % (PACKS * (10 ** decimals()));
+        uint256 singles = remainder / (10 ** decimals());
+
+        _nftBalances[account][DOLLAR] = singles;
+        _nftBalances[account][TWENTY_DOLLARS] = twenties;
+        _nftBalances[account][CARTONS] = twoHundreds;
+    }
+*/
+
 
 
                 
@@ -677,7 +728,7 @@ contract Minimal404Marlboro is Ownable, ERC404 {
 
         
         // Retrieve the latest token added to the owner's stack (LIFO).
-        uint256 id = ids.length - 1;
+        uint256 id = ids[ids.length - 1];
 
         // Transfer to 0x0.
         // Does not handle ERC-721 exemptions.
@@ -690,6 +741,7 @@ contract Minimal404Marlboro is Ownable, ERC404 {
         storedERC721sOfValue.pushFront(id);
     }
 
+    
     /// @notice Internal function for ERC-721 deposits to bank (this contract).
     /// @dev This function will allow depositing of ERC-721s to the bank, which can be retrieved by future minters.
     // Does not handle ERC-721 exemptions.
@@ -713,31 +765,6 @@ contract Minimal404Marlboro is Ownable, ERC404 {
     }
 
 
-
-    /// @dev takes a quantity of units and builds a list of tokens to mint for each value
-    /// @param _units are whole ERC20s to calculate from
-    function calculateTokens(
-        uint256 _units
-      ) internal view returns (uint256[] memory) {
-        uint256[] memory nftsToRetrieveOrMint = new uint256[](
-            NUM_TOKEN_VALUES
-        );
-        uint256 remainingUnits = _units;
-
-        // Calculate the number of units to retrieve or mint for each token value
-        for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
-            nftsToRetrieveOrMint[i] = remainingUnits / tokenValues[i];
-            remainingUnits %= tokenValues[i];
-            unchecked {
-                ++i;
-            }
-        }
-
-        return nftsToRetrieveOrMint;
-    }
-
-
-
     
     /// @notice function to assemble unique token ID
     /// @param value of token
@@ -757,8 +784,8 @@ contract Minimal404Marlboro is Ownable, ERC404 {
         uint256 prefix = id_ & (uint256(3) << 253);
 
         // Check if the prefix matches one of the valid prefixes
-        bool validPrefix = prefix == PREFIX_MARLBORO_MEN || prefix == PREFIX_CARTONS ||
-                        prefix == PREFIX_PACKS || prefix == PREFIX_LOOSIES;
+        bool validPrefix = prefix == /*PREFIX_MARLBORO_MEN || prefix == */ PREFIX_CARTONS ||
+                        prefix == PREFIX_PACKS; //|| prefix == PREFIX_LOOSIES;
 
         // Ensure the sequence number is valid (non-zero and within bounds).
         // Assuming the sequence is stored in the lower 253 bits, 
@@ -770,12 +797,14 @@ contract Minimal404Marlboro is Ownable, ERC404 {
         return validPrefix && validSequence;
     }
 
-     /// @notice returns prefix for each token value -- hardcoded for efficiency
+    
+    
+    /// @notice returns prefix for each token value -- hardcoded for efficiency
     function _getTokenPrefix(uint256 value) internal pure returns (uint256) {
-        if (value == MARLBORO_MEN) return PREFIX_MARLBORO_MEN;
+  //      if (value == MARLBORO_MEN) return PREFIX_MARLBORO_MEN;
         if (value == CARTONS) return PREFIX_CARTONS;
         if (value == PACKS) return PREFIX_PACKS;
-        if (value == LOOSIES) return PREFIX_LOOSIES;
+   //     if (value == LOOSIES) return PREFIX_LOOSIES;
 
         revert("Invalid token value");
     }
@@ -783,5 +812,5 @@ contract Minimal404Marlboro is Ownable, ERC404 {
     function mintERC20(address account_, uint256 value_) external onlyOwner {
         _mintERC20(account_, value_);
     }
-
 }
+

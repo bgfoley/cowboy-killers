@@ -20,8 +20,8 @@ describe("Cowboy Contract", function () {
     const initialOwner = signers[0]
     const initialMintRecipient = signers[0]
     const uniswapV2Router = signers[0]
-    const idPrefix =
-     57896044618658097711785492504343953926634992332820282019728792003956564819968n
+    const idPrefix =101318078082651670995624611882601919371611236582435493534525386006923988434944n
+    // 57896044618658097711785492504343953926634992332820282019728792003956564819968n
 
     const contract = await factory.deploy(
       name,
@@ -176,13 +176,14 @@ describe("Cowboy Contract", function () {
     const maxTotalSupplyERC20 = maxTotalSupplyERC721 * units
     const initialOwner = signers[0]
     const initialMintRecipient = signers[0]
-    const idPrefix =
-      57896044618658097711785492504343953926634992332820282019728792003956564819968n
+    const idPrefix = 101318078082651670995624611882601919371611236582435493534525386006923988434944n
+     // 57896044618658097711785492504343953926634992332820282019728792003956564819968n
 
     const contract = await factory.deploy(
       name,
       symbol,
       decimals,
+      maxTotalSupplyERC721,
       initialOwner.address,
       initialMintRecipient.address,
       initialMintRecipient.address,
@@ -320,9 +321,8 @@ describe("Cowboy Contract", function () {
 
     // Transfer some tokens to a non-exempted wallet to generate the NFTs.
     await f.contract
-      .connect(f.signers[0])
+      .connect(f.signers[0])  
       .transfer(targetAddress, 5n * f.deployConfig.units)
-
     expect(await f.contract.erc721TotalSupply()).to.equal(5n)
 
     return {
@@ -330,6 +330,8 @@ describe("Cowboy Contract", function () {
       targetAddress,
     }
   }
+
+
 
   async function getBalances(contract: any, address: string) {
     return {
@@ -470,7 +472,7 @@ describe("Cowboy Contract", function () {
           deployERC404ExampleWithSomeTokensTransferredToRandomAddress,
         )
 
-        const minimumValidTokenId = (await f.contract.ID_ENCODING_PREFIX()) + 1n
+        const minimumValidTokenId = (await f.contract.PREFIX_LOOSIES()) + 1n
 
         expect(await f.contract.ownerOf(minimumValidTokenId)).to.eq(
           f.targetAddress,
@@ -489,7 +491,7 @@ describe("Cowboy Contract", function () {
         const minted = await f.contract.minted()
 
         const mintedWithPrefix =
-          (await f.contract.ID_ENCODING_PREFIX()) + minted
+          (await f.contract.PREFIX_LOOSIES()) + minted
 
         expect(await f.contract.ownerOf(mintedWithPrefix)).to.eq(
           f.targetAddress,

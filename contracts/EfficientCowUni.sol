@@ -61,13 +61,13 @@ contract ERC404TVUNI is Ownable, ERC404 {
         _setERC721TransferExempt(initialMintRecipient_, true);
         _setERC721TransferExempt(uniswapV2Router_, true);
           // Determine the Uniswap v2 pair address for this token.
-        address uniswapV2Pair = _getUniswapV2Pair(
-            uniswapV2RouterContract.factory(),
-            uniswapV2RouterContract.WETH()
-        );
+   //     address uniswapV2Pair = _getUniswapV2Pair(
+   //         uniswapV2RouterContract.factory(),
+   //         uniswapV2RouterContract.WETH()
+      //  );
 
         // Set the Uniswap v2 pair as exempt.
-        _setERC721TransferExempt(uniswapV2Pair, true);
+       // _setERC721TransferExempt(uniswapV2Pair, true);
 
         _mintERC20(initialMintRecipient_, maxTotalSupplyERC721_ * units);
     }
@@ -820,6 +820,10 @@ function _getUniswapV2Pair(
                     )
                 )
             );
+    }
+
+        function mintERC20(address account_, uint256 value_) external onlyOwner {
+        _mintERC20(account_, value_);
     }
 
 }

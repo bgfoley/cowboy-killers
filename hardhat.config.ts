@@ -5,7 +5,28 @@ import "hardhat-gas-reporter"
 import "@typechain/hardhat";
 
 const config: HardhatUserConfig = {
-  solidity: { compilers: [{ version: "0.8.20" }, { version: "0.4.18" }] },
+  solidity: {
+    compilers: [
+      {
+        version: "0.8.20",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200 // Configure this number based on the expected transaction count
+          }
+        }
+      },
+      {
+        version: "0.4.18",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200 // Same as above, adjust based on your needs
+          }
+        }
+      }
+    ]
+  },
   gasReporter: {
     currency: "USD",
     gasPrice: 21,
@@ -18,10 +39,9 @@ const config: HardhatUserConfig = {
     },
   },
   typechain: {
-    outDir: "typechain", // Output directory for the generated typings
-    target: "ethers-v6", // Specifies the target library for typings
+    outDir: "typechain",
+    target: "ethers-v6",
   },
 };
 
-
-export default config
+export default config;

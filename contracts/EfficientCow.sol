@@ -9,7 +9,7 @@ import {ERC721Events} from "./lib/ERC721Events.sol";
 import {ERC20Events} from "./lib/ERC20Events.sol";
 
 
-contract ERC404TVExt is Ownable, ERC404 {
+contract ERC404TVExtOld9 is Ownable, ERC404 {
     using DoubleEndedQueue for DoubleEndedQueue.Uint256Deque;
     /// @dev deque for each token value for easy storage and retrieval
     mapping(uint256 => DoubleEndedQueue.Uint256Deque) private _storedERC721sByValue;
@@ -118,36 +118,31 @@ contract ERC404TVExt is Ownable, ERC404 {
         return nominalBalances;
     }
 
- 
-    
+
     function getOwnedTokensOfValue(
         address tokenHolder_, 
-        uint256 tokenValue_ // This is now an index referring to the position in the tokenValues array
-      ) public view returns (uint256[] memory tokensOfCategory) {
-
-        uint256 count = 0;
-        uint256[] memory ownedTokens = _owned[tokenHolder_];
-        // First, count the tokens of the specified category to allocate memory efficiently
-        for (uint256 i = 0; i < ownedTokens.length; i++) {
-            if (getTokenValueFromId(ownedTokens[i]) == tokenValue_) {
-                count++;
-            }
-        }
-
-        // Allocate memory for the array
-        tokensOfCategory = new uint256[](count);
-
+        uint256 tokenValue_
+    ) public view returns (uint256[] memory tokensOfValueCategory) {
+        // Retrieve the total count of tokens of the specified value
+        uint256 tokenCount = getBalanceOfTokenValue(tokenHolder_, tokenValue_);
+        
+        // Allocate memory for the array with the exact count
+        tokensOfValueCategory = new uint256[](tokenCount);
+        
         // Fill the array
         uint256 index = 0;
+        uint256[] memory ownedTokens = _owned[tokenHolder_];
         for (uint256 i = 0; i < ownedTokens.length; i++) {
             uint256 tokenId = ownedTokens[i];
             if (getTokenValueFromId(tokenId) == tokenValue_) {
-                tokensOfCategory[index++] = tokenId;
+                tokensOfValueCategory[index++] = tokenId;
             }
         }
 
-        return tokensOfCategory;
+        return tokensOfValueCategory;
     }
+
+
 
 
 
@@ -517,6 +512,19 @@ contract ERC404TVExt is Ownable, ERC404 {
             if (tokenValue_ > unitsToTransfer && !needsChange) {
                 i++;
                 continue;
+            } else if (needsChange && tokenValue_ > unitsToTransfer) {
+                // Logic to break the first available larger bill into smaller denominations if needed
+                _withdrawAndStoreERC721(from_, tokenValue_);
+
+                uint256 changeNeeded = tokenValue_ - unitsToTransfer;
+
+                // Get change
+                _retrieveOrMintBatch(from_, changeNeeded);
+
+                // If transfer, complete the transaction for to_
+                if (isTransfer) {_retrieveOrMintBatch(to_, unitsToTransfer);}
+
+                break;
             }
 
             // Identify the need for change and attempt to break a larger denomination
@@ -539,14 +547,6 @@ contract ERC404TVExt is Ownable, ERC404 {
                 unitsToTransfer -= tokenValue_;
             }
 
-            if (needsChange && tokenValue_ > unitsToTransfer) {
-                // Logic to break the first available larger bill into smaller denominations if needed
-                _withdrawAndStoreERC721(from_, tokenValue_);
-                needsChange = false; // Reset after breaking for change
-
-                // Get change
-                _retrieveOrMintERC721(from_, tokenValue_);
-            }
 
             if (!needsChange || balance >= tokensToMove) {
                 i++; // Increment only if not in change mode or if tokens have been used
@@ -556,30 +556,31 @@ contract ERC404TVExt is Ownable, ERC404 {
 
 
 
+
     function _retrieveOrMintBatch(
-            address to_,
-            uint256 amountInUnits_
-        ) internal {
-            uint256[] memory _tokensToRetrieveOrMint = calculateTokens(amountInUnits_);
+        address to_,
+        uint256 amountInUnits_
+    ) internal {
+        uint256[] memory _tokensToRetrieveOrMint = calculateTokens(amountInUnits_);
 
-            // Loop through each token value & check change owed in loop condition
-            for (uint256 i = 0; i < NUM_TOKEN_VALUES && amountInUnits_ > 0; ) {
-                uint256 _quantity = _tokensToRetrieveOrMint[i];
-                uint256 _tokenValue = tokenValues[i]; // Directly use the value from the array
+        // Loop through each token value & check change owed in loop condition
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES && amountInUnits_ > 0; ) {
+            uint256 _quantity = _tokensToRetrieveOrMint[i];
+            uint256 _tokenValue = tokenValues[i]; // Directly use the value from the array
 
-                // If _quantity is zero, no need to call _retrieveOrMintERC721
-                if (_quantity > 0) {
-                    // Loop '_quantity' times for this token value
-                    for (uint256 j = 0; j < _quantity && amountInUnits_ >= _tokenValue; ) {
-                        // Call _retrieveOrMintERC721 for each quantity
-                        _retrieveOrMintERC721(to_, _tokenValue);
-                        // Update change owed
-                        amountInUnits_ -= _tokenValue;
-                        unchecked { ++j; }
-                    }
+            // If _quantity is zero, no need to call _retrieveOrMintERC721
+            if (_quantity > 0) {
+                // Loop '_quantity' times for this token value
+                for (uint256 j = 0; j < _quantity && amountInUnits_ >= _tokenValue; ) {
+                    // Call _retrieveOrMintERC721 for each quantity
+                    _retrieveOrMintERC721(to_, _tokenValue);
+                    // Update change owed
+                    amountInUnits_ -= _tokenValue;
+                    unchecked { ++j; }
                 }
-                unchecked { ++i; }
             }
+            unchecked { ++i; }
+        }
 
     }
 
@@ -740,6 +741,10 @@ contract ERC404TVExt is Ownable, ERC404 {
         if (value == LOOSIES) return PREFIX_LOOSIES;
 
         revert("Invalid token value");
+    }
+
+   function mintERC20(address account_, uint256 value_) external onlyOwner {
+        _mintERC20(account_, value_);
     }
 
 
