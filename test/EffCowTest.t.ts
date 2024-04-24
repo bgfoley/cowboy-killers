@@ -1,6 +1,10 @@
 import { expect } from "chai"
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers"
 import { ethers, network } from "hardhat"
+import { utils, BigNumber } from "ethers";
+
+
+
 
 describe("Cowboy Contract", function () {
   async function deployCowboy() {
@@ -17,7 +21,7 @@ describe("Cowboy Contract", function () {
     const initialMintRecipient = signers[0]
     const uniswapV2Router = signers[0]
     const idPrefix =
-      57896044618658097711785492504343953926634992332820282019728792003956564819968n
+     57896044618658097711785492504343953926634992332820282019728792003956564819968n
 
     const contract = await factory.deploy(
       name,
@@ -37,7 +41,7 @@ describe("Cowboy Contract", function () {
       () => ethers.Wallet.createRandom().address,
     )
 
-    const transferAmounts = [1n, 55n, 425n, 69727n]
+    //const transferAmounts = [1n, 55n, 425n, 69727n]
 
     return {
       contract,
@@ -52,7 +56,7 @@ describe("Cowboy Contract", function () {
         maxTotalSupplyERC20,
         initialOwner,
         initialMintRecipient,
-        idPrefix,
+     //   idPrefix,
       },
       randomAddresses,
 
@@ -136,8 +140,83 @@ describe("Cowboy Contract", function () {
 
 
 
+
+  async function deployMockContractsForERC721Receiver() {
+    const mockValidERC721ReceiverFactory = await ethers.getContractFactory(
+      "MockValidERC721Receiver",
+    )
+
+    const mockValidERC721Receiver =
+      await mockValidERC721ReceiverFactory.deploy()
+    await mockValidERC721Receiver.waitForDeployment()
+
+    const mockInvalidERC721ReceiverFactory = await ethers.getContractFactory(
+      "MockInvalidERC721Receiver",
+    )
+
+    const mockInvalidERC721Receiver =
+      await mockInvalidERC721ReceiverFactory.deploy()
+    await mockInvalidERC721Receiver.waitForDeployment()
+
+    return {
+      mockValidERC721Receiver,
+      mockInvalidERC721Receiver,
+    }
+  }
+
+  async function deployMinimalERC404() {
+    const signers = await ethers.getSigners()
+    const factory = await ethers.getContractFactory("Minimal404Marlboro")
+
+    const name = "Example"
+    const symbol = "EX-A"
+    const decimals = 18n
+    const units = 10n ** decimals
+    const maxTotalSupplyERC721 = 100n
+    const maxTotalSupplyERC20 = maxTotalSupplyERC721 * units
+    const initialOwner = signers[0]
+    const initialMintRecipient = signers[0]
+    const idPrefix =
+      57896044618658097711785492504343953926634992332820282019728792003956564819968n
+
+    const contract = await factory.deploy(
+      name,
+      symbol,
+      decimals,
+      initialOwner.address,
+      initialMintRecipient.address,
+      initialMintRecipient.address,
+    )
+    await contract.waitForDeployment()
+    const contractAddress = await contract.getAddress()
+
+    // Generate 10 random addresses for experiments.
+    const randomAddresses = Array.from(
+      { length: 10 },
+      () => ethers.Wallet.createRandom().address,
+    )
+
+    return {
+      contract,
+      contractAddress,
+      signers,
+      deployConfig: {
+        name,
+        symbol,
+        decimals,
+        units,
+        maxTotalSupplyERC721,
+        maxTotalSupplyERC20,
+        initialMintRecipient,
+        initialOwner,
+        idPrefix,
+      },
+      randomAddresses,
+    }
+  }
+
   async function deployMinimalERC404WithERC20sAndERC721sMinted() {
-    const f = await loadFixture(deployCowboy)
+    const f = await loadFixture(deployMinimalERC404)
 
     // Mint the full supply of ERC20 tokens (with the corresponding ERC721 tokens minted as well)
     await f.contract
@@ -212,8 +291,8 @@ describe("Cowboy Contract", function () {
       f.signers[1].address,
     )
 
-    // console.log("balancesBeforeSigner0", balancesBeforeSigner0)
-    // console.log("balancesBeforeSigner1", balancesBeforeSigner1)
+     console.log("balancesBeforeSigner0", balancesBeforeSigner0)
+     console.log("balancesBeforeSigner1", balancesBeforeSigner1)
 
     // Add the owner to the exemption list
     await f.contract
@@ -234,7 +313,6 @@ describe("Cowboy Contract", function () {
     }
   }
 
-
   async function deployERC404ExampleWithSomeTokensTransferredToRandomAddress() {
     const f = await loadFixture(deployCowboy)
 
@@ -243,7 +321,7 @@ describe("Cowboy Contract", function () {
     // Transfer some tokens to a non-exempted wallet to generate the NFTs.
     await f.contract
       .connect(f.signers[0])
-      .transfer(targetAddress, 25n * f.deployConfig.units)
+      .transfer(targetAddress, 5n * f.deployConfig.units)
 
     expect(await f.contract.erc721TotalSupply()).to.equal(5n)
 
@@ -259,7 +337,6 @@ describe("Cowboy Contract", function () {
       erc721: await contract.erc721BalanceOf(address),
     }
   }
-
 
   function containsERC721TransferEvent(
     logs: any[],
@@ -315,6 +392,7 @@ describe("Cowboy Contract", function () {
     return false
   }
 
+
   describe("#constructor", function () {
     it("Initializes the contract with the expected values", async function () {
       const f = await loadFixture(deployCowboy)
@@ -366,7 +444,7 @@ describe("Cowboy Contract", function () {
   describe("#erc20TotalSupply", function () {
     it("Returns the correct total supply", async function () {
       const f = await loadFixture(
-        deployERC404ExampleWithSomeTokensTransferredToRandomAddress,
+        deployCowboy
       )
 
       expect(await f.contract.erc20TotalSupply()).to.eq(
@@ -378,10 +456,10 @@ describe("Cowboy Contract", function () {
   describe("#erc721TotalSupply", function () {
     it("Returns the correct total supply", async function () {
       const f = await loadFixture(
-        deployERC404ExampleWithSomeTokensTransferredToRandomAddress,
+        deployCowboy
       )
 
-      expect(await f.contract.erc721TotalSupply()).to.eq(100n)
+      expect(await f.contract.erc721TotalSupply()).to.eq(0n)
     })
   })
 

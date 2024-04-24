@@ -5,13 +5,14 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {DoubleEndedQueue} from "./lib/DoubleEndedQueue.sol";
 import {ERC404} from "./ERC404.sol";
+import {IUniswapV2Router02} from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import {ERC721Events} from "./lib/ERC721Events.sol";
 import {ERC20Events} from "./lib/ERC20Events.sol";
 
 
-contract ERC404TVExt is Ownable, ERC404 {
+contract ERC404TVUNI is Ownable, ERC404 {
     using DoubleEndedQueue for DoubleEndedQueue.Uint256Deque;
-    /// @dev deque for each token value for easy storage and retrieval
+    ///@dev deque for each token value for easy storage and retrieval
     mapping(uint256 => DoubleEndedQueue.Uint256Deque) private _storedERC721sByValue;
     using Strings for uint256;
     
@@ -51,9 +52,23 @@ contract ERC404TVExt is Ownable, ERC404 {
         address initialMintRecipient_,
         address uniswapV2Router_
     ) ERC404(name_, symbol_, decimals_) Ownable(initialOwner_) {
+         IUniswapV2Router02 uniswapV2RouterContract = IUniswapV2Router02(
+            uniswapV2Router_
+        );
+
+        
         // Do not mint the ERC721s to the initial owner, as it's a waste of gas.
         _setERC721TransferExempt(initialMintRecipient_, true);
         _setERC721TransferExempt(uniswapV2Router_, true);
+          // Determine the Uniswap v2 pair address for this token.
+        address uniswapV2Pair = _getUniswapV2Pair(
+            uniswapV2RouterContract.factory(),
+            uniswapV2RouterContract.WETH()
+        );
+
+        // Set the Uniswap v2 pair as exempt.
+        _setERC721TransferExempt(uniswapV2Pair, true);
+
         _mintERC20(initialMintRecipient_, maxTotalSupplyERC721_ * units);
     }
 
@@ -493,68 +508,106 @@ contract ERC404TVExt is Ownable, ERC404 {
         return true;
     }
 
-  
-    
-    
+
+    /// @notice Function to handle internal logic for bulk transfers of ERC721 tokens that occurs
+    /// with transferERC20WithERC721 
+    /// @param from_ is sender
+    /// @param to_ is receipient. For withdrawAndStore, zero address used as placeholer
+    /// @param amountInUnits_ is the native value of the transfer
     function _batchTransferOrWithdrawAndStoreERC721(
-        address from_, // sender
-        address to_,  // receiver -- if isTransfer = false, this is set to the zero address and not used
-        uint256 amountInUnits_, // underlying units to transfer - these are like single dollar bills
+        address from_,
+        address to_, 
+        uint256 amountInUnits_,
         bool isTransfer // true for transfer, false for withdraw and store
-    ) internal {
-        uint256 unitsToTransfer = amountInUnits_; // Amount in dollars to transfer
-        bool needsChange = false; // Flag to indicate if we need to break into smaller tokens for change
+      ) internal {
 
-        for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
-            if (unitsToTransfer == 0) {
-                break; // If no units are left to transfer, we are done.
-            }
 
+        // At this point sender's erc20 balance has been reduced by the amount of the transfer - 
+        // their erc20 balance before transfer will help them retrieve exact change
+        uint256 senderNativeBalanceBefore = (balanceOf[from_]) / units + amountInUnits_;
+        
+        // Counter
+        uint256 unitsToTransfer = amountInUnits_;
+
+        // Use greedy algo logic to withdraw token values from greatest > to least
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES && unitsToTransfer > 0;) {
             uint256 tokenValue_ = tokenValues[i];
+
+             // Get from_ balance of selected token value
             uint256 balance = getBalanceOfTokenValue(from_, tokenValue_);
 
-            // Skip to the next denomination if the current one is too large and we're not yet breaking for change
-            if (tokenValue_ > unitsToTransfer && !needsChange) {
-                i++;
-                continue;
-            }
 
-            // Identify the need for change and attempt to break a larger denomination
-            if (i == NUM_TOKEN_VALUES - 1 && unitsToTransfer > 0) {
-                needsChange = true;
-                i = 0; // Reset to start searching for a denomination to break
-                continue;
-            }
+            // Check if senders has enough tokens of lesser value to complete transfer. If not, get change.
+            if (tokenValue_ >= unitsToTransfer 
+                && (senderNativeBalanceBefore - (
+                    balance * tokenValue_) < unitsToTransfer)) {
 
-            uint256 tokensToMove = (balance < unitsToTransfer / tokenValue_) ? balance : (unitsToTransfer / tokenValue_);
-
-            for (uint256 j = 0; j < tokensToMove; j++) {
-                if (isTransfer) {
-                    uint256[] memory ownedTokens = getOwnedTokensOfValue(from_, tokenValue_);
-                    uint256 id = ownedTokens[ownedTokens.length - 1]; // Get the last token to transfer
+                
+                if (isTransfer && tokenValue_ == unitsToTransfer) {
+                    // If isTransfer is true and tokenValue equals unitsToTransfer, 
+                    
+                    // Get token id to transfer
+                    uint256[] memory ownedTokens = 
+                      getOwnedTokensOfValue(from_, tokenValue_);
+                    
+                    uint256 id = ownedTokens.length - 1;  
+                    
+                    // perform a direct transfer of the ERC721 token.
                     _transferERC721(from_, to_, id);
+
+                    // Update remaining units to transfer
+                    unitsToTransfer -= tokenValue_;    
                 } else {
+                    
+                    // Otherwise, withdraw ERC721 to the bank and get exact change
                     _withdrawAndStoreERC721(from_, tokenValue_);
+
+                    // Check if there's a non-zero change owed to the sender.
+                    // If so, get change. Do not update unitsToTransfer as this will be done 
+                    // in subsequent loops with exact change
+                    if (tokenValue_ != unitsToTransfer) {
+                        uint256 changeOwedToSender = tokenValue_ - unitsToTransfer;
+                        _retrieveOrMintBatch(from_, changeOwedToSender);
+                   
+                    // If no change is needed and no unitsRemaining to transfer, update remainingUnits
+                     } else {
+                        unitsToTransfer -= tokenValue_;
+                     }
                 }
-                unitsToTransfer -= tokenValue_;
+            
+                 
+             } else if (tokenValue_ < unitsToTransfer) {
+                
+                // Determine how many ERC721 to withdraw
+                uint256 tokens = unitsToTransfer / tokenValue_;
+                
+                // Use the greater of the two values, otherwise will not have enough for transfer
+                uint256 tokensToMove = balance >= tokens ? tokens : balance;
+
+                // Transfer tokensToMove one at a time
+                for (uint256 j = 0; j < tokensToMove; /* increment inside the loop body */) {
+                    if (isTransfer) {
+                        // If isTransfer is true, transfer the ERC721 token
+                        _transferERC721(from_, to_, tokenValue_);
+                    } else {
+                        // If isTransfer is false, withdraw and store the ERC721 token
+                        _withdrawAndStoreERC721(from_, tokenValue_);
+                    }
+
+                    // Increment j inside an unchecked block to avoid overflow checks
+                    unchecked {
+                        j++;
+                    }
+                    // Update remaining unitsToTransfer
+                    unitsToTransfer -= (tokensToMove * tokenValue_);
+
+                }
+            
             }
 
-            if (needsChange && tokenValue_ > unitsToTransfer) {
-                // Logic to break the first available larger bill into smaller denominations if needed
-                _withdrawAndStoreERC721(from_, tokenValue_);
-                needsChange = false; // Reset after breaking for change
-
-                // Get change
-                _retrieveOrMintERC721(from_, tokenValue_);
-            }
-
-            if (!needsChange || balance >= tokensToMove) {
-                i++; // Increment only if not in change mode or if tokens have been used
-            }
+        unchecked { ++i; }
         }
     }
-
-
 
     function _retrieveOrMintBatch(
             address to_,
@@ -639,7 +692,7 @@ contract ERC404TVExt is Ownable, ERC404 {
 
         
         // Retrieve the latest token added to the owner's stack (LIFO).
-        uint256 id = ids[ids.length - 1];
+        uint256 id = ids.length - 1;
 
         // Transfer to 0x0.
         // Does not handle ERC-721 exemptions.
@@ -742,6 +795,32 @@ contract ERC404TVExt is Ownable, ERC404 {
         revert("Invalid token value");
     }
 
+function _getUniswapV2Pair(
+        address uniswapV2Factory_,
+        address weth_
+    ) private view returns (address) {
+        address thisAddress = address(this);
+
+        (address token0, address token1) = thisAddress < weth_
+            ? (thisAddress, weth_)
+            : (weth_, thisAddress);
+
+        return
+            address(
+                uint160(
+                    uint256(
+                        keccak256(
+                            abi.encodePacked(
+                                hex"ff",
+                                uniswapV2Factory_,
+                                keccak256(abi.encodePacked(token0, token1)),
+                                hex"96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f"
+                            )
+                        )
+                    )
+                )
+            );
+    }
 
 }
 

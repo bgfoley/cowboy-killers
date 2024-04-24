@@ -2,8 +2,8 @@ import { expect } from "chai"
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers"
 import { ethers, network } from "hardhat"
 
-describe("ERC404UniswapV2Exempt", function () {
-  async function deployERC404ExampleUniswapV2() {
+describe("ERC404TVExt", function () {
+  async function deployERC404TVExt() {
     const signers = await ethers.getSigners()
 
     // Deploy Uniswap v2 factory.
@@ -38,26 +38,30 @@ describe("ERC404UniswapV2Exempt", function () {
 
     // Deploy the token.
 
-    const factory = await ethers.getContractFactory("Cowboy")
-/*
-    const name = "Ciggies"
-    const symbol = "CGS"
+    const factory = await ethers.getContractFactory("ERC404TVExt")
+    
+    const name = "Example"
+    const symbol = "EX-A"
     const decimals = 18n
     const units = 10n ** decimals
     const maxTotalSupplyERC721 = 100n
     const maxTotalSupplyERC20 = maxTotalSupplyERC721 * units
     const initialOwner = signers[0]
     const initialMintRecipient = signers[0]
+  /*
+    const idPrefix =
+      57896044618658097711785492504343953926634992332820282019728792003956564819968n
 */
     const contract = await factory.deploy(
- /*     name,
+      name,
       symbol,
       decimals,
       maxTotalSupplyERC721,
       initialOwner.address,
       initialMintRecipient.address,
+    //  idPrefix,
       await uniswapV2RouterContract.getAddress(),
-   */ )
+    )
     await contract.waitForDeployment()
     const contractAddress = await contract.getAddress()
 
@@ -90,7 +94,7 @@ describe("ERC404UniswapV2Exempt", function () {
 
   describe("#constructor", function () {
     it("Adds the UniswapV2Router02 to the ERC-721 transfer exempt list", async function () {
-      const f = await loadFixture(deployERC404ExampleUniswapV2)
+      const f = await loadFixture(deployERC404TVExt)
 
       const uniswapV2RouterContractAddress =
         await f.deployConfig.uniswapV2RouterContract.getAddress()
@@ -105,7 +109,7 @@ describe("ERC404UniswapV2Exempt", function () {
     })
 
     it("Adds the Uniswap v2 Pair address for this token + WETH to the ERC-721 transfer exempt list", async function () {
-      const f = await loadFixture(deployERC404ExampleUniswapV2)
+      const f = await loadFixture(deployERC404TVExt)
 
       // Create the pair using the Uniswap v2 factory.
       await f.deployConfig.uniswapV2FactoryContract.createPair(

@@ -1,9 +1,0 @@
-| Function Name | Sighash    | Function Signature | 
-| ------------- | ---------- | ------------------ | 
-| owned | b1ab9317 | owned(address) |
-| getNominalBalances | 248a6b1c | getNominalBalances(address) |
-| erc721BalanceOf | b3f9ea34 | erc721BalanceOf(address) |
-| getERC721TokensInQueueByValue | df0b0478 | getERC721TokensInQueueByValue(uint256,uint256,uint256) |
-| tokenURI | c87b56dd | tokenURI(uint256) |
-| setERC721TransferExempt | c6e672b9 | setERC721TransferExempt(address,bool) |
-| erc721TransferFrom | dd637699 | erc721TransferFrom(address,address,uint256) |

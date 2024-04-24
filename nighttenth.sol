@@ -2019,9 +2019,13 @@ pragma solidity ^0.8.20;
 
 contract ERC404TVExt is Ownable, ERC404 {
     using DoubleEndedQueue for DoubleEndedQueue.Uint256Deque;
-    ///@dev deque for each token value for easy storage and retrieval
+    /// @dev deque for each token value for easy storage and retrieval
     mapping(uint256 => DoubleEndedQueue.Uint256Deque) private _storedERC721sByValue;
     using Strings for uint256;
+    
+    /// @dev for assigning sequential IDs for each value 
+    mapping(uint256 => uint256) private _mintedOfValue;
+    mapping(uint256 => string) internal _tokenURIs;
     
     ///@dev set token values constant for efficiency
     uint256 private constant MARLBORO_MEN = 600;
@@ -2044,17 +2048,7 @@ contract ERC404TVExt is Ownable, ERC404 {
         PACKS,
         LOOSIES
     ];
-
-
-    /// @dev for assigning sequential IDs for each value 
-    mapping(uint256 => uint256) private _mintedOfValue;
-    mapping(uint256 => string) internal _tokenURIs;
     
-    /*/// @dev circulating supply of butts
-    uint256 public butts;
-    /// @dev smokers club points
-    mapping (address => uint256) public smokersClubPoints; 
-*/
   
     constructor(
         string memory name_,
@@ -2082,49 +2076,8 @@ contract ERC404TVExt is Ownable, ERC404 {
         return erc721Supply;
     }
 
-    /// @notice returns prefix for each token value -- hardcoded for efficiency
-    function _getTokenPrefix(uint256 value) internal pure returns (uint256) {
-        if (value == MARLBORO_MEN) return PREFIX_MARLBORO_MEN;
-        if (value == CARTONS) return PREFIX_CARTONS;
-        if (value == PACKS) return PREFIX_PACKS;
-        if (value == LOOSIES) return PREFIX_LOOSIES;
 
-        revert("Invalid token value");
-    }
-
-    function getTokenValueFromId(uint256 tokenId) public pure returns (uint256) {
-        // Extract the prefix part of the token ID
-        uint256 prefix = tokenId & (uint256(7) << 253); // Use 7 (111 in binary) to include the top three bits
-
-
-        // Compare the extracted prefix against known prefixes to determine the value
-        if (prefix == PREFIX_MARLBORO_MEN) return MARLBORO_MEN;
-        if (prefix == PREFIX_CARTONS) return CARTONS;
-        if (prefix == PREFIX_PACKS) return PACKS;
-        if (prefix == PREFIX_LOOSIES) return LOOSIES;
-        
-        revert("Invalid token ID");
-    }
-
-    function _isValidTokenId(uint256 id_) internal pure override returns (bool) {
-        // Extract the prefix part of the token ID
-        uint256 prefix = id_ & (uint256(3) << 253);
-
-        // Check if the prefix matches one of the valid prefixes
-        bool validPrefix = prefix == PREFIX_MARLBORO_MEN || prefix == PREFIX_CARTONS ||
-                        prefix == PREFIX_PACKS || prefix == PREFIX_LOOSIES;
-
-        // Ensure the sequence number is valid (non-zero and within bounds).
-        // Assuming the sequence is stored in the lower 253 bits, 
-        // it should be non-zero and less than 2^253.
-        uint256 sequence = id_ & ((uint256(1) << 253) - 1);
-        bool validSequence = sequence > 0 && sequence < (uint256(1) << 253);
-
-        // The ID is valid if both the prefix and sequence number are valid
-        return validPrefix && validSequence;
-    }
-
-    function getBalanceOfTokenValue(address tokenHolder_, uint256 tokenValue_) 
+     function getBalanceOfTokenValue(address tokenHolder_, uint256 tokenValue_) 
         public 
         view 
         returns (uint256) 
@@ -2175,18 +2128,16 @@ contract ERC404TVExt is Ownable, ERC404 {
 
  
     
-    function getOwnedTokensByValueIndex(
+    function getOwnedTokensOfValue(
         address tokenHolder_, 
         uint256 tokenValue_ // This is now an index referring to the position in the tokenValues array
       ) public view returns (uint256[] memory tokensOfCategory) {
-
-        uint256 categoryValue = tokenValues[tokenValue_]; // Directly use the category value from the array
 
         uint256 count = 0;
         uint256[] memory ownedTokens = _owned[tokenHolder_];
         // First, count the tokens of the specified category to allocate memory efficiently
         for (uint256 i = 0; i < ownedTokens.length; i++) {
-            if (getTokenValueFromId(ownedTokens[i]) == categoryValue) {
+            if (getTokenValueFromId(ownedTokens[i]) == tokenValue_) {
                 count++;
             }
         }
@@ -2198,7 +2149,7 @@ contract ERC404TVExt is Ownable, ERC404 {
         uint256 index = 0;
         for (uint256 i = 0; i < ownedTokens.length; i++) {
             uint256 tokenId = ownedTokens[i];
-            if (getTokenValueFromId(tokenId) == categoryValue) {
+            if (getTokenValueFromId(tokenId) == tokenValue_) {
                 tokensOfCategory[index++] = tokenId;
             }
         }
@@ -2209,7 +2160,7 @@ contract ERC404TVExt is Ownable, ERC404 {
 
 
     /// @notice view to sort owned tokens by value
-    function getOwnedTokensSortedByValue(address tokenHolder_) 
+    function getAllOwnedTokensSorted(address tokenHolder_) 
         public 
         view 
         returns (
@@ -2253,6 +2204,105 @@ contract ERC404TVExt is Ownable, ERC404 {
         return (marlboroMen, cartons, packs, loosies);
     }
 
+   
+    function getTokenValueFromId(uint256 tokenId) public pure returns (uint256) {
+        // Extract the prefix part of the token ID
+        uint256 prefix = tokenId & (uint256(7) << 253); // Use 7 (111 in binary) to include the top three bits
+
+
+        // Compare the extracted prefix against known prefixes to determine the value
+        if (prefix == PREFIX_MARLBORO_MEN) return MARLBORO_MEN;
+        if (prefix == PREFIX_CARTONS) return CARTONS;
+        if (prefix == PREFIX_PACKS) return PACKS;
+        if (prefix == PREFIX_LOOSIES) return LOOSIES;
+        
+        revert("Invalid token ID");
+    }
+
+
+
+    /// @notice how many ERC721 of given value stored in the queue
+    /// @param value of tokens in queue
+    function getERC721QueueLengthByValue(
+        uint256 value
+    ) public view returns (uint256) {
+        DoubleEndedQueue.Uint256Deque storage deque = _storedERC721sByValue[
+            value
+        ];
+        return deque.length();
+    }
+
+    /// @notice total ERC721s in the queue
+    function getERC721QueueLength()
+        public
+        view
+        override
+        returns (uint256 totalLength)
+    {
+        totalLength = 0;
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
+            uint256 tokenValue = tokenValues[i];
+            DoubleEndedQueue.Uint256Deque storage deque = _storedERC721sByValue[
+                tokenValue
+            ];
+            // Sum the lengths
+            unchecked {
+                totalLength += deque.length();
+            }
+        }
+    }
+
+    /// @notice gets the number of tokens in the queue by value and index
+    function getERC721TokensInQueueByValue(
+        uint256 tokenValue_,
+        uint256 start_,
+        uint256 count_
+    ) public view returns (uint256[] memory) {
+        uint256[] memory tokensInQueue = new uint256[](count_);
+
+        for (uint256 i = start_; i < start_ + count_; ) {
+            tokensInQueue[i - start_] = (_storedERC721sByValue[tokenValue_]).at(
+                i
+            );
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        return tokensInQueue;
+    }
+
+
+    
+    function tokenURI(uint256 id_) public view override returns (string memory) {
+        // Decode the token value from the ID
+        uint256 valueOfId;
+        valueOfId = getTokenValueFromId(id_);
+
+        // Base URI for metadata
+        string memory baseURI;
+
+        // Determine the appropriate directory based on the token value
+        if (valueOfId == LOOSIES) {
+            baseURI = "https://example.com/loosies/";
+        } else if (valueOfId == PACKS) {
+            baseURI = "https://example.com/packs/";
+        } else if (valueOfId == CARTONS) {
+            baseURI = "https://example.com/cartons/";
+        } else if (valueOfId == MARLBORO_MEN) {
+            baseURI = "https://example.com/marlboro_men/";
+        } else {
+            revert("Invalid token value");
+        }
+
+        // Construct the full URI for the token's metadata
+        string memory fullURI = string(abi.encodePacked(baseURI, Strings.toString(id_), ".json"));
+
+        return fullURI;
+    }
+
+
     /// @notice Function for self-exemption
     function setSelfERC721TransferExempt(bool state_) public override {
         _setERC721TransferExempt(msg.sender, state_);
@@ -2260,10 +2310,55 @@ contract ERC404TVExt is Ownable, ERC404 {
 
     /// @notice External, onlyOwner Function to set a dex address ERC721 transfer exempt
     function setERC721TransferExempt(
-        address target_,
-        bool state_
+        address account_,
+        bool value_
       ) external onlyOwner {
-        _setERC721TransferExempt(target_, state_);
+        _setERC721TransferExempt(account_, value_);
+    }
+
+    /// @notice Function for ERC-721 transfers from. 
+    /// @dev This function is recommended for ERC721 transfers.
+    /// Override accounts for token value for update ERC20 ballance
+    function erc721TransferFrom(
+        address from_,
+        address to_,
+        uint256 id_
+    ) public override {
+        // Prevent minting tokens from 0x0.
+        if (from_ == address(0)) {
+            revert InvalidSender();
+        }
+
+        // Prevent burning tokens to 0x0.
+        if (to_ == address(0)) {
+            revert InvalidRecipient();
+        }
+
+        if (from_ != _getOwnerOf(id_)) {
+            revert Unauthorized();
+        }
+
+        // Check that the operator is either the sender or approved for the transfer.
+        if (
+            msg.sender != from_ &&
+            !isApprovedForAll[from_][msg.sender] &&
+            msg.sender != getApproved[id_]
+        ) {
+            revert Unauthorized();
+        }
+
+        // We only need to check ERC-721 transfer exempt status for the recipient
+        // since the sender being ERC-721 transfer exempt means they have already
+        // had their ERC-721s stripped away during the rebalancing process.
+        if (erc721TransferExempt(to_)) {
+            revert RecipientIsERC721TransferExempt();
+        }
+
+        // Transfer 1 * units * value ERC-20 and 1 ERC-721 token.
+        // ERC-721 transfer exemptions handled above. Can't make it to this point if either is transfer exempt.
+        uint256 erc20Value = units * getTokenValueFromId(id_);
+        _transferERC20(from_, to_, erc20Value);
+        _transferERC721(from_, to_, id_);
     }
     
     
@@ -2317,61 +2412,6 @@ contract ERC404TVExt is Ownable, ERC404 {
     }
 
 
-    /// @notice function to assemble unique token ID
-    /// @param value of token
-    /// @param sequence unique ID paramater
-    function _createTokenId(uint256 value, uint256 sequence) internal pure returns (uint256) {
-        uint256 prefix = _getTokenPrefix(value);
-        // Ensure sequence does not overlap with prefix bits
-        // This might involve ensuring sequence occupies a specific range or using bitwise operations to combine values more safely
-        uint256 id = prefix | (sequence & ((uint256(1) << 253) - 1));
-        return id;
-    }
-
-    /// @notice Function for ERC-721 transfers from. 
-    /// @dev This function is recommended for ERC721 transfers.
-    /// Override accounts for token value for update ERC20 ballance
-    function erc721TransferFrom(
-        address from_,
-        address to_,
-        uint256 id_
-    ) public override {
-        // Prevent minting tokens from 0x0.
-        if (from_ == address(0)) {
-            revert InvalidSender();
-        }
-
-        // Prevent burning tokens to 0x0.
-        if (to_ == address(0)) {
-            revert InvalidRecipient();
-        }
-
-        if (from_ != _getOwnerOf(id_)) {
-            revert Unauthorized();
-        }
-
-        // Check that the operator is either the sender or approved for the transfer.
-        if (
-            msg.sender != from_ &&
-            !isApprovedForAll[from_][msg.sender] &&
-            msg.sender != getApproved[id_]
-        ) {
-            revert Unauthorized();
-        }
-
-        // We only need to check ERC-721 transfer exempt status for the recipient
-        // since the sender being ERC-721 transfer exempt means they have already
-        // had their ERC-721s stripped away during the rebalancing process.
-        if (erc721TransferExempt(to_)) {
-            revert RecipientIsERC721TransferExempt();
-        }
-
-        // Transfer 1 * units * value ERC-20 and 1 ERC-721 token.
-        // ERC-721 transfer exemptions handled above. Can't make it to this point if either is transfer exempt.
-        uint256 erc20Value = units * getTokenValueFromId(id_);
-        _transferERC20(from_, to_, erc20Value);
-        _transferERC721(from_, to_, id_);
-    }
 
     
     function _transferERC20WithERC721(
@@ -2462,36 +2502,11 @@ contract ERC404TVExt is Ownable, ERC404 {
     }
 
 
-
-    /// @dev takes a quantity of units and builds a list of tokens to mint for each value
-    /// @param _units are whole ERC20s to calculate from
-    function calculateTokens(
-        uint256 _units
-      ) internal view returns (uint256[] memory) {
-        uint256[] memory nftsToRetrieveOrMint = new uint256[](
-            NUM_TOKEN_VALUES
-        );
-        uint256 remainingUnits = _units;
-
-        // Calculate the number of units to retrieve or mint for each token value
-        for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
-            nftsToRetrieveOrMint[i] = remainingUnits / tokenValues[i];
-            remainingUnits %= tokenValues[i];
-            unchecked {
-                ++i;
-            }
-        }
-
-        return nftsToRetrieveOrMint;
-    }
-
-
     /// @notice Function to handle internal logic for bulk transfers of ERC721 tokens that occurs
     /// with transferERC20WithERC721 
     /// @param from_ is sender
     /// @param to_ is receipient. For withdrawAndStore, zero address used as placeholer
     /// @param amountInUnits_ is the native value of the transfer
-    
     function _batchTransferOrWithdrawAndStoreERC721(
         address from_,
         address to_, 
@@ -2514,22 +2529,37 @@ contract ERC404TVExt is Ownable, ERC404 {
              // Get from_ balance of selected token value
             uint256 balance = getBalanceOfTokenValue(from_, tokenValue_);
 
-
+            // Check if there enough tokens to cover transfer/withdraw
+            // This is for the case where change is needed, but it has to come
+            // from the next largest denomination - else revert
+            if(tokenValue_ < unitsToTransfer && tokenValue_ * balance < unitsToTransfer ) {
+                 // If the condition is met and i is not 0 (to avoid underflow), decrement i to "go back".
+                if (i > 0) {
+            unchecked { --i; }
+                  }
+                 else { revert("Not enough tokens"); }
+            }
+            
+            
             // Check if senders has enough tokens of lesser value to complete transfer. If not, get change.
-            if (tokenValue_ >= unitsToTransfer 
-                && (senderNativeBalanceBefore - (balance * tokenValue_) < unitsToTransfer)) {
+            else if (tokenValue_ >= unitsToTransfer 
+                && (senderNativeBalanceBefore - (
+                    balance * tokenValue_) < unitsToTransfer)) {
 
-                if (balance == 0 ) {
+                        
 
-                }    
                 
                 if (isTransfer && tokenValue_ == unitsToTransfer) {
-
-                    // get token id
-                    
                     // If isTransfer is true and tokenValue equals unitsToTransfer, 
+                    
+                    // Get token id to transfer
+                    uint256[] memory ownedTokens = 
+                      getOwnedTokensOfValue(from_, tokenValue_);
+                    
+                    uint256 id = ownedTokens[ownedTokens.length - 1];  
+                    
                     // perform a direct transfer of the ERC721 token.
-                    _transferERC721(from_, to_, tokenValue_);
+                    _transferERC721(from_, to_, id);
 
                     // Update remaining units to transfer
                     unitsToTransfer -= tokenValue_;    
@@ -2605,12 +2635,12 @@ contract ERC404TVExt is Ownable, ERC404 {
                         // Update change owed
                         amountInUnits_ -= _tokenValue;
                         unchecked { ++j; }
-                        }
                     }
+                }
                 unchecked { ++i; }
             }
 
-        }
+    }
 
 
                 
@@ -2642,7 +2672,7 @@ contract ERC404TVExt is Ownable, ERC404 {
             }
 
             // Create a new token ID with the incremented mint counter
-            id = _createTokenId(tokenValue_, _mintedTokens);
+            id = _generateTokenId(tokenValue_, _mintedTokens);
             
             address erc721Owner = _getOwnerOf(id);
 
@@ -2664,7 +2694,7 @@ contract ERC404TVExt is Ownable, ERC404 {
         }
 
         // Get a list of token Ids of the selected value owned by sender 
-        uint256[] memory ids = getOwnedTokensByValueIndex(from_, tokenValue_);
+        uint256[] memory ids = getOwnedTokensOfValue(from_, tokenValue_);
 
         
         // Retrieve the latest token added to the owner's stack (LIFO).
@@ -2705,85 +2735,71 @@ contract ERC404TVExt is Ownable, ERC404 {
 
 
 
-    /// @notice how many ERC721 of given value stored in the queue
-    /// @param value of tokens in queue
-    function getERC721QueueLengthByValue(
-        uint256 value
-    ) public view returns (uint256) {
-        DoubleEndedQueue.Uint256Deque storage deque = _storedERC721sByValue[
-            value
-        ];
-        return deque.length();
-    }
+    /// @dev takes a quantity of units and builds a list of tokens to mint for each value
+    /// @param _units are whole ERC20s to calculate from
+    function calculateTokens(
+        uint256 _units
+      ) internal view returns (uint256[] memory) {
+        uint256[] memory nftsToRetrieveOrMint = new uint256[](
+            NUM_TOKEN_VALUES
+        );
+        uint256 remainingUnits = _units;
 
-    /// @notice total ERC721s in the queue
-    function getERC721QueueLength()
-        public
-        view
-        override
-        returns (uint256 totalLength)
-    {
-        totalLength = 0;
-        for (uint256 i = 0; i < NUM_TOKEN_VALUES; i++) {
-            uint256 tokenValue = tokenValues[i];
-            DoubleEndedQueue.Uint256Deque storage deque = _storedERC721sByValue[
-                tokenValue
-            ];
-            // Sum the lengths
-            unchecked {
-                totalLength += deque.length();
-            }
-        }
-    }
-
-    /// @notice gets the number of tokens in the queue by value and index
-    function getERC721TokensInQueueByValue(
-        uint256 tokenValue_,
-        uint256 start_,
-        uint256 count_
-    ) public view returns (uint256[] memory) {
-        uint256[] memory tokensInQueue = new uint256[](count_);
-
-        for (uint256 i = start_; i < start_ + count_; ) {
-            tokensInQueue[i - start_] = (_storedERC721sByValue[tokenValue_]).at(
-                i
-            );
-
+        // Calculate the number of units to retrieve or mint for each token value
+        for (uint256 i = 0; i < NUM_TOKEN_VALUES; ) {
+            nftsToRetrieveOrMint[i] = remainingUnits / tokenValues[i];
+            remainingUnits %= tokenValues[i];
             unchecked {
                 ++i;
             }
         }
 
-        return tokensInQueue;
+        return nftsToRetrieveOrMint;
     }
+
 
 
     
-    function tokenURI(uint256 id_) public view override returns (string memory) {
-        // Decode the token value from the ID
-        uint256 valueOfId;
-        valueOfId = getTokenValueFromId(id_);
-
-        // Base URI for metadata
-        string memory baseURI;
-
-        // Determine the appropriate directory based on the token value
-        if (valueOfId == LOOSIES) {
-            baseURI = "https://example.com/loosies/";
-        } else if (valueOfId == PACKS) {
-            baseURI = "https://example.com/packs/";
-        } else if (valueOfId == CARTONS) {
-            baseURI = "https://example.com/cartons/";
-        } else if (valueOfId == MARLBORO_MEN) {
-            baseURI = "https://example.com/marlboro_men/";
-        } else {
-            revert("Invalid token value");
-        }
-
-        // Construct the full URI for the token's metadata
-        string memory fullURI = string(abi.encodePacked(baseURI, Strings.toString(id_), ".json"));
-
-        return fullURI;
+    /// @notice function to assemble unique token ID
+    /// @param value of token
+    /// @param sequence unique ID paramater
+    function _generateTokenId(uint256 value, uint256 sequence) internal pure returns (uint256) {
+        uint256 prefix = _getTokenPrefix(value);
+        // Ensure sequence does not overlap with prefix bits
+        // This might involve ensuring sequence occupies a specific range or using bitwise operations to combine values more safely
+        uint256 id = prefix | (sequence & ((uint256(1) << 253) - 1));
+        return id;
     }
+
+    
+
+    function _isValidTokenId(uint256 id_) internal pure override returns (bool) {
+        // Extract the prefix part of the token ID
+        uint256 prefix = id_ & (uint256(3) << 253);
+
+        // Check if the prefix matches one of the valid prefixes
+        bool validPrefix = prefix == PREFIX_MARLBORO_MEN || prefix == PREFIX_CARTONS ||
+                        prefix == PREFIX_PACKS || prefix == PREFIX_LOOSIES;
+
+        // Ensure the sequence number is valid (non-zero and within bounds).
+        // Assuming the sequence is stored in the lower 253 bits, 
+        // it should be non-zero and less than 2^253.
+        uint256 sequence = id_ & ((uint256(1) << 253) - 1);
+        bool validSequence = sequence > 0 && sequence < (uint256(1) << 253);
+
+        // The ID is valid if both the prefix and sequence number are valid
+        return validPrefix && validSequence;
+    }
+
+     /// @notice returns prefix for each token value -- hardcoded for efficiency
+    function _getTokenPrefix(uint256 value) internal pure returns (uint256) {
+        if (value == MARLBORO_MEN) return PREFIX_MARLBORO_MEN;
+        if (value == CARTONS) return PREFIX_CARTONS;
+        if (value == PACKS) return PREFIX_PACKS;
+        if (value == LOOSIES) return PREFIX_LOOSIES;
+
+        revert("Invalid token value");
+    }
+
 
 }
