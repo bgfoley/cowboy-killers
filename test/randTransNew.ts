@@ -9,14 +9,14 @@ describe("Cowboy Contract", function () {
     console.log("Retrieved signers.");
 
     console.log("Fetching contract factory...");
-    const factory = await ethers.getContractFactory("ERC4041155");
+    const factory = await ethers.getContractFactory("Marlboro");
     console.log("Factory fetched.");
 
     const name = "Example";
     const symbol = "EX-A";
     const decimals = 18n; // Using BigInt directly as per your original script
     const units = 10n ** decimals;
-    const maxTotalSupplyERC721 = 100000n;
+    const maxTotalSupplyERC721 = 600000n;
     const maxTotalSupplyERC20 = maxTotalSupplyERC721 * units;
     const initialOwner = signers[0];
     const initialMintRecipient = signers[0];
@@ -43,7 +43,7 @@ describe("Cowboy Contract", function () {
     );
     console.log("Random addresses generated.");
 
-    const transferAmounts = Array.from({ length: 50 }, (_, i) => ethers.parseUnits((i + 1527).toString(), 18));
+    const transferAmounts = Array.from({ length: 50 }, (_, i) => ethers.parseUnits((i + 560).toString(), 18));
 
     return {
       contract,

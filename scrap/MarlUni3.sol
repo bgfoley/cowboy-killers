@@ -11,7 +11,7 @@ import {ERC20Events} from "./lib/ERC20Events.sol";
 import {ERC404WithERC1155Extension} from "./extensions/ERC404WithERC1155Extension.sol";
 import {ERC404UniswapV3Exempt} from "./extensions/ERC404UniswapV3Exempt.sol";
 
-contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404UniswapV3Exempt */{
+contract MarlUni3 is Ownable, ERC404, ERC404WithERC1155Extension, ERC404UniswapV3Exempt {
 
     // For batch operations on SFTs
     using Arrays for uint256[];
@@ -40,16 +40,16 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
         uint256 maxTotalSupplyERC721_,
         address initialOwner_,
         address initialMintRecipient_,
-        address uniswapSwapRouter_
-      //  address uniswapV3NonfungiblePositionManager_
+        address uniswapSwapRouter_,
+        address uniswapV3NonfungiblePositionManager_
     ) 
         ERC404(name_, symbol_, decimals_) 
         Ownable(initialOwner_) 
         ERC404WithERC1155Extension()
-     /*   ERC404UniswapV3Exempt(
+        ERC404UniswapV3Exempt(
             uniswapSwapRouter_,
             uniswapV3NonfungiblePositionManager_ 
-        )  */
+        ) 
     {
         // Do not mint the ERC721s to the initial owner, as it's a waste of gas.
         _setERC721TransferExempt(initialMintRecipient_, true);
@@ -114,48 +114,42 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
         }
     }
 
-    /// @notice function to transfer ERC1155s of a given id
-    /// @dev transfers ERC20 value of sfts without handling ERC721 
 
+     /// @notice internal Function for safe transfer of erc1155 tokens 
+    
+    /// @dev override original erc1155 function to include updates to erc20 balance
+
+    function _safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes memory data) internal override {
+        if (to == address(0)) {
+            revert ("Invalid receiver");
+        }
+        if (from == address(0)) {
+            revert ("Invalid sender");
+        }
+        (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(id, value);
+        _updateWithAcceptanceCheck(from, to, ids, values, data);
+
+        // ERC20 and ERC721 Transfer logic included here
+        uint256 amount = id * value;
+        _transferERC20WithERC721(from, to, amount);
+    }
+
+
+    /**
+        * @notice for safe transfer of erc1155 tokens with data argument 
+     * @dev See {IERC1155-safeTransferFrom}.
+     */
     function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes memory data) public override {
         address sender = _msgSender();
         if (from != sender && !isApprovedForAll[from][msg.sender]) {
-            revert InvalidOperator();
+            revert ("Missing approval for all");
         }
-        
 
         _safeTransferFrom(from, to, id, value, data);
-
-         // Calculate ERC20 value of sfts being transferred and bypass ERC721 transfer path
-        // So that the SFTs are not implicitly converted to NFTs
-        uint256 amount = id * value * units;
-        _transferERC20(from, to, amount);
-    }
-
-      /**
-     * @dev See {IERC1155-safeBatchTransferFrom}.
-     */
-    function safeBatchTransferFrom(
-        address from,
-        address to,
-        uint256[] memory ids,
-        uint256[] memory values,
-        bytes memory data
-    ) public override {
-        address sender = _msgSender();
-        if (from != sender && !isApprovedForAll[from][sender]) {
-            revert("Missing approvals");
-        }
-        _safeBatchTransferFrom(from, to, ids, values, data);
-        
-        uint256 amount = _sumProductsOfArrayValues(ids, values);
-        uint256 amountUnits = amount * units;
-        _transferERC20(from, to, amountUnits);
     }
 
 
-
-    /// @notice Function for ERC-721 approvals - override to include event for ERC1155 approvals
+     /// @notice Function for ERC-721 approvals - override to include event for ERC1155 approvals
     function setApprovalForAll(
         address operator_,
         bool approved_
@@ -205,27 +199,15 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
     }
 
 
-    function _sumProductsOfArrayValues(uint256[] memory ids, uint256[] memory values) internal pure returns (uint256) {
-        uint256 result = 0;
-        for (uint256 i = 0; i < ids.length; ) {
-            result += ids[i] * values[i];
-        unchecked {
-                ++i;
-            }
-        }
-        return result;
-    }
-
-
     /// @notice Function for self-exemption
     function setSelfERC721TransferExempt(bool state_) public override {
         _setERC721TransferExempt(msg.sender, state_);
     }
 
-/*
-    /// @notice Function for mixed transfers from an operator that may be different than 'from'.
-    /// @dev This function checks token prefix to determine whether transfer token is ERC721
-    ///       
+
+     /// @notice Function for mixed transfers from an operator that may be different than 'from'.
+    /// @dev This function assumes the operator is attempting to transfer an ERC-721
+    ///      if valueOrId is less than or equal to current max id.
     function transferFrom(
         address from_,
         address to_,
@@ -240,7 +222,7 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
 
         return true;
     }
- */   
+    
     
     /// @notice Function for ERC-721 transfers from. 
     /// @dev This function is recommended for ERC721 transfers.
@@ -285,13 +267,11 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
         uint256 erc20Value = units * MARLBORO_MEN;
         _transferERC20(from_, to_, erc20Value);
         _transferERC721(from_, to_, id_);
-// In this context there is no need to handle SFT transfers, since the transfer of a single NFT
-// is inherently an "exact change" transfer
-//        _transferERC1155(from_, to_, erc20Value);
+        _transferERC1155(from_, to_, erc20Value);
     }
 
 
-    function _transferERC1155(address from_, address to_, uint256 units_) internal {
+        function _transferERC1155(address from_, address to_, uint256 units_) internal {
         // Update ERC1155 balances based on unit value transfered
         (uint256[] memory values_, uint256[] memory ids_) = calculateTokens(units_);
 
@@ -345,27 +325,22 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
             //         to transfer ERC-721s from the sender, but the recipient should receive ERC-721s
             //         from the bank/minted for any whole number increase in their balance.
             
+            
+           
+            // Only cares about whole number increments.
+            uint256 sftsToRetrieveOrMint = (balanceOf[to_] / units) -
+                (erc20BalanceOfReceiverBefore / units);
 
-            // send ERC1155s from zero address
-       //     _transferERC1155(address(0), to_, sftsToRetrieveOrMint);
+            // send 1155s from zero address
+            _transferERC1155(address(0), to_, sftsToRetrieveOrMint);
 
-
-              // Only cares about whole number increments.
-            uint256 nftsToRetrieveOrMint = ((balanceOf[to_] / units) -
-                (erc20BalanceOfReceiverBefore / units)) / 
-                    MARLBORO_MEN;
-
+            uint256 nftsToRetrieveOrMint = sftsToRetrieveOrMint / MARLBORO_MEN;
 
             for (uint256 i = 0; i < nftsToRetrieveOrMint; ) {
                 _retrieveOrMintERC721(to_);
                 unchecked {
                     ++i;
                 }
-            }
-            
-            if (nftsToRetrieveOrMint % MARLBORO_MEN != 0) {
-            // Update receiver's ERC1155 balances
-            _updateERC1155Balances(to_);
             }
         } else if (isToERC721TransferExempt) {
             // Case 3) The sender is not ERC-721 transfer exempt, but the recipient is. Contract should attempt
@@ -374,21 +349,18 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
             // Only cares about whole number increments.
             
 
-            uint256 nftsToWithdrawAndStore = ((erc20BalanceOfSenderBefore /
-                units) - (balanceOf[from_] / units)) /
-                    MARLBORO_MEN;
+            uint256 sftsToBurn = (erc20BalanceOfSenderBefore /
+                units) - (balanceOf[from_] / units);
+            
+            // send 1155s to zero address
+            _transferERC1155(from_, address(0), sftsToBurn);
 
-           
+            uint256 nftsToWithdrawAndStore = sftsToBurn / MARLBORO_MEN;
             for (uint256 i = 0; i < nftsToWithdrawAndStore; ) {
                 _withdrawAndStoreERC721(from_);
                 unchecked {
                     ++i;
                 }
-            }
-            
-            if (nftsToWithdrawAndStore % MARLBORO_MEN != 0) {
-            // Update receiver's ERC1155 balances
-            _updateERC1155Balances(from_);
             }
         } else {
             // Case 4) Neither the sender nor the recipient are ERC-721 transfer exempt.
@@ -402,7 +374,12 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
             
 
             // Whole tokens worth of ERC-20s get transferred as ERC-721s without any burning/minting.
-            uint256 nftsToTransfer = value_ / units / MARLBORO_MEN;
+            uint256 sftsToTransfer = value_ / units;
+
+            // send 1155s to zero address
+            _transferERC1155(from_, to_, sftsToTransfer);
+            
+            uint256 nftsToTransfer = sftsToTransfer / MARLBORO_MEN;
             
             for (uint256 i = 0; i < nftsToTransfer; ) {
                 // Pop from sender's ERC-721 stack and transfer them (LIFO)
@@ -414,11 +391,22 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
                     ++i;
                 }
             }
+/// need to swap out units for 600 units for this one
             // If the sender's transaction changes their holding from a fractional to a non-fractional
             // amount (or vice versa), adjust ERC-721s.
             //
             // Check if the send causes the sender to lose a whole token that was represented by an ERC-721
             // due to a fractional part being transferred.
+            if (
+                erc20BalanceOfSenderBefore /
+                    units -
+                    erc20BalanceOf(from_) /
+                    units >
+                sftsToTransfer
+            ) {
+                // Burn a loosie
+                _transferERC1155(from_, address(0), LOOSIES);
+            }
 
             if (
                 erc20BalanceOfSenderBefore /
@@ -431,6 +419,17 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
                 _withdrawAndStoreERC721(from_);
             }
 
+            if (
+                erc20BalanceOf(to_) /
+                    units -
+                    erc20BalanceOfReceiverBefore /
+                    units >
+                sftsToTransfer
+            ) {
+                // Gain a loosie
+                _transferERC1155(address(0), to_, LOOSIES);
+            }
+            
             if (   
                 erc20BalanceOf(to_) /
                     (units * MARLBORO_MEN) -
@@ -438,46 +437,21 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
                     (units * MARLBORO_MEN) >
                 nftsToTransfer
             ) {
-                // Gain a Marlboro Man
+                // Gain a loosie
                 _retrieveOrMintERC721(to_);
             }
-            // Update sender's ERC1155 balances
-            _updateERC1155Balances(from_);
-
-            // Update receiver's ERC1155 balances
-            _updateERC1155Balances(to_);
         }
 
         return true;
     }
-
-    /// @notice function to update sfts balances for an account
-    /// @dev skips the _update function and calculateTokens logic used
-    ///     for direct sft transfers, to save gas
-
-    function _updateERC1155Balances(address account) private {
-        uint256 units_ = erc20BalanceOf(account) / units;
-        uint256 remainder = units_ % MARLBORO_MEN;
-            uint256 cartons = remainder / CARTONS;
-            remainder = remainder % CARTONS;
-            uint256 packs = remainder / PACKS;
-            remainder = remainder % PACKS;
-            uint256 loosies = remainder / LOOSIES;
-
-            // Update account balances
-            _balances[CARTONS][account] = cartons;
-            _balances[PACKS][account] = packs;
-            _balances[LOOSIES][account] = loosies;
-
-    } 
     
 
-    /// @dev takes a quantity of units and builds a list of tokens to mint for each value
+     /// @dev takes a quantity of units and builds a list of tokens to mint for each value
     /// @param _units are whole ERC20s to calculate from
     function calculateTokens(
         uint256 _units
     ) internal view returns (uint256[] memory, uint256[] memory) {
-        uint256[] memory sftsToRetrieveOrMint = new uint256[](NUM_TOKEN_VALUES);
+        uint256[] memory nftsToRetrieveOrMint = new uint256[](NUM_TOKEN_VALUES);
         uint256[] memory tokenValuesFiltered = new uint256[](NUM_TOKEN_VALUES);
         uint256 remainingUnits = _units % MARLBORO_MEN;
         uint256 count = 0;
@@ -486,7 +460,7 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
         for (uint256 i = 0; i < NUM_TOKEN_VALUES; ++i) {
             uint256 amount = remainingUnits / tokenValues[i];
             if (amount > 0) {
-                sftsToRetrieveOrMint[count] = amount;
+                nftsToRetrieveOrMint[count] = amount;
                 tokenValuesFiltered[count] = tokenValues[i];
                 ++count;
             }
@@ -497,7 +471,7 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
         uint256[] memory finalNfts = new uint256[](count);
         uint256[] memory finalTokenValues = new uint256[](count);
         for (uint256 i = 0; i < count; ++i) {
-            finalNfts[i] = sftsToRetrieveOrMint[i];
+            finalNfts[i] = nftsToRetrieveOrMint[i];
             finalTokenValues[i] = tokenValuesFiltered[i];
         }
 
