@@ -1,12 +1,17 @@
-  // SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 library ERC1155Events {
-  
-  /**
+    /**
      * @dev Emitted when `value` amount of tokens of type `id` are transferred from `from` to `to` by `operator`.
      */
-    event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
+    event TransferSingle(
+        address indexed operator,
+        address indexed from,
+        address indexed to,
+        uint256 id,
+        uint256 value
+    );
 
     /**
      * @dev Equivalent to multiple {TransferSingle} events, where `operator`, `from` and `to` are the same for all
@@ -24,7 +29,11 @@ library ERC1155Events {
      * @dev Emitted when `account` grants or revokes permission to `operator` to transfer their tokens, according to
      * `approved`.
      */
-    event ApprovalForAll(address indexed account, address indexed operator, bool approved);
+    event ApprovalForAll(
+        address indexed account,
+        address indexed operator,
+        bool approved
+    );
 
     /**
      * @dev Emitted when the URI for token type `id` changes to `value`, if it is a non-programmatic URI.
@@ -34,5 +43,4 @@ library ERC1155Events {
      * returned by {IERC1155MetadataURI-uri}.
      */
     event URI(string value, uint256 indexed id);
-
 }

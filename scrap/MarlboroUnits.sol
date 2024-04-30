@@ -18,19 +18,19 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
     using Arrays for address[];
     
     /// @dev set token values constant for efficiency
-    uint256 private constant MARLBORO_MEN = 600;
-    uint256 private constant CARTONS = 200;
-    uint256 private constant PACKS = 20;
-    uint256 private constant LOOSIES = 1;
+    uint256 private constant _MARLBORO_MEN;
+    uint256 private constant _CARTONS;
+    uint256 private constant _PACKS;
+    uint256 private constant _LOOSIES;
     /// @dev Does not include Marlboro Men, since this value is used to calculate SFTs.
-    uint256 private constant NUM_TOKEN_VALUES = 3;
+    uint256 private constant _NUM_SFT_VALUES;
 
     /// @notice tokenValues is an index of token values
     /// @dev token value index needs to be in descending order, largest to smallest for calculations to work
-    uint256[NUM_TOKEN_VALUES] public tokenValues = [
-        CARTONS,
-        PACKS,
-        LOOSIES
+    uint256[_NUM_SFT_VALUES] public tokenValues = [
+        _CARTONS,
+        _PACKS,
+        _LOOSIES
     ];
 
     constructor(
@@ -39,8 +39,8 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
         uint8 decimals_,
         uint256 maxTotalSupplyERC721_,
         address initialOwner_,
-        address initialMintRecipient_,
-        address uniswapSwapRouter_
+        address initialMintRecipient_
+     //   address uniswapSwapRouter_
       //  address uniswapV3NonfungiblePositionManager_
     ) 
         ERC404(name_, symbol_, decimals_) 
@@ -50,7 +50,11 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
             uniswapSwapRouter_,
             uniswapV3NonfungiblePositionManager_ 
         )  */
-    {
+    {   
+        _MARLBORO_MEN = units;
+        _CARTONS = units / 4;
+        _PACKS = units / 40;
+        _LOOSIES = units / 800;
         // Do not mint the ERC721s to the initial owner, as it's a waste of gas.
         _setERC721TransferExempt(initialMintRecipient_, true);
         _mintERC20(initialMintRecipient_, maxTotalSupplyERC721_ * units);
@@ -191,12 +195,12 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
 
     function _handleSFTURI(uint256 id_) private view returns (string memory) {
         string memory baseURI;
-        if (id_ == LOOSIES) {
-            baseURI = "https://example.com/loosies/";
-        } else if (id_ == PACKS) {
-            baseURI = "https://example.com/packs/";
-        } else if (id_ == CARTONS) {
-            baseURI = "https://example.com/cartons/";
+        if (id_ == _LOOSIES) {
+            baseURI = "https://example.com/_LOOSIES/";
+        } else if (id_ == _PACKS) {
+            baseURI = "https://example.com/_PACKS/";
+        } else if (id_ == _CARTONS) {
+            baseURI = "https://example.com/_CARTONS/";
         } else {
             revert("Invalid SFT ID");
         }
@@ -282,7 +286,7 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
 
         // Transfer 1 * units * value ERC-20 and 1 ERC-721 token.
         // ERC-721 transfer exemptions handled above. Can't make it to this point if either is transfer exempt.
-        uint256 erc20Value = units * MARLBORO_MEN;
+        uint256 erc20Value = units * _MARLBORO_MEN;
         _transferERC20(from_, to_, erc20Value);
         _transferERC721(from_, to_, id_);
 // In this context there is no need to handle SFT transfers, since the transfer of a single NFT
@@ -353,7 +357,7 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
               // Only cares about whole number increments.
             uint256 nftsToRetrieveOrMint = ((balanceOf[to_] / units) -
                 (erc20BalanceOfReceiverBefore / units)) / 
-                    MARLBORO_MEN;
+                    _MARLBORO_MEN;
 
 
             for (uint256 i = 0; i < nftsToRetrieveOrMint; ) {
@@ -363,7 +367,7 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
                 }
             }
             
-            if (nftsToRetrieveOrMint % MARLBORO_MEN != 0) {
+            if (nftsToRetrieveOrMint % _MARLBORO_MEN != 0) {
             // Update receiver's ERC1155 balances
             _updateERC1155Balances(to_);
             }
@@ -376,7 +380,7 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
 
             uint256 nftsToWithdrawAndStore = ((erc20BalanceOfSenderBefore /
                 units) - (balanceOf[from_] / units)) /
-                    MARLBORO_MEN;
+                    _MARLBORO_MEN;
 
            
             for (uint256 i = 0; i < nftsToWithdrawAndStore; ) {
@@ -386,7 +390,7 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
                 }
             }
             
-            if (nftsToWithdrawAndStore % MARLBORO_MEN != 0) {
+            if (nftsToWithdrawAndStore % _MARLBORO_MEN != 0) {
             // Update receiver's ERC1155 balances
             _updateERC1155Balances(from_);
             }
@@ -402,7 +406,7 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
             
 
             // Whole tokens worth of ERC-20s get transferred as ERC-721s without any burning/minting.
-            uint256 nftsToTransfer = value_ / units / MARLBORO_MEN;
+            uint256 nftsToTransfer = value_ / units / _MARLBORO_MEN;
             
             for (uint256 i = 0; i < nftsToTransfer; ) {
                 // Pop from sender's ERC-721 stack and transfer them (LIFO)
@@ -422,9 +426,9 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
 
             if (
                 erc20BalanceOfSenderBefore /
-                    (units * MARLBORO_MEN) -
+                    (units * _MARLBORO_MEN) -
                     erc20BalanceOf(from_) /
-                    (units * MARLBORO_MEN) >
+                    (units * _MARLBORO_MEN) >
                 nftsToTransfer
             ) {
                 // Burn a Marlboro Man
@@ -433,9 +437,9 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
 
             if (   
                 erc20BalanceOf(to_) /
-                    (units * MARLBORO_MEN) -
+                    (units * _MARLBORO_MEN) -
                     erc20BalanceOfReceiverBefore /
-                    (units * MARLBORO_MEN) >
+                    (units * _MARLBORO_MEN) >
                 nftsToTransfer
             ) {
                 // Gain a Marlboro Man
@@ -457,17 +461,17 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
 
     function _updateERC1155Balances(address account) private {
         uint256 units_ = erc20BalanceOf(account) / units;
-        uint256 remainder = units_ % MARLBORO_MEN;
-            uint256 cartons = remainder / CARTONS;
-            remainder = remainder % CARTONS;
-            uint256 packs = remainder / PACKS;
-            remainder = remainder % PACKS;
-            uint256 loosies = remainder / LOOSIES;
+        uint256 remainder = units_ % _MARLBORO_MEN;
+            uint256 _CARTONS = remainder / _CARTONS;
+            remainder = remainder % _CARTONS;
+            uint256 _PACKS = remainder / _PACKS;
+            remainder = remainder % _PACKS;
+            uint256 _LOOSIES = remainder / _LOOSIES;
 
             // Update account balances
-            _balances[CARTONS][account] = cartons;
-            _balances[PACKS][account] = packs;
-            _balances[LOOSIES][account] = loosies;
+            _balances[_CARTONS][account] = _CARTONS;
+            _balances[_PACKS][account] = _PACKS;
+            _balances[_LOOSIES][account] = _LOOSIES;
 
     } 
     
@@ -477,13 +481,13 @@ contract Marlboro is Ownable, ERC404, ERC404WithERC1155Extension /* ERC404Uniswa
     function calculateTokens(
         uint256 _units
     ) internal view returns (uint256[] memory, uint256[] memory) {
-        uint256[] memory sftsToRetrieveOrMint = new uint256[](NUM_TOKEN_VALUES);
-        uint256[] memory tokenValuesFiltered = new uint256[](NUM_TOKEN_VALUES);
-        uint256 remainingUnits = _units % MARLBORO_MEN;
+        uint256[] memory sftsToRetrieveOrMint = new uint256[](_NUM_SFT_VALUES);
+        uint256[] memory tokenValuesFiltered = new uint256[](_NUM_SFT_VALUES);
+        uint256 remainingUnits = _units % _MARLBORO_MEN;
         uint256 count = 0;
 
         // Calculate the number of units to retrieve or mint for each token value
-        for (uint256 i = 0; i < NUM_TOKEN_VALUES; ++i) {
+        for (uint256 i = 0; i < _NUM_SFT_VALUES; ++i) {
             uint256 amount = remainingUnits / tokenValues[i];
             if (amount > 0) {
                 sftsToRetrieveOrMint[count] = amount;

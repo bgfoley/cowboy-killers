@@ -5,10 +5,10 @@ import {ERC404} from "../ERC404.sol";
 import {Arrays} from "@openzeppelin/contracts/utils/Arrays.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/interfaces/IERC1155Receiver.sol";
 import {ERC1155Events} from "../lib/ERC1155Events.sol";
-import {IERC404WithERC1155Extension} from "../interfaces/IERC404WithERC1155Extension.sol";
+import {IERC404ERC1155Extension} from "../interfaces/IERC404ERC1155Extension.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 
-abstract contract ERC404WithERC1155Extension is Context, ERC404 {
+abstract contract ERC404ERC1155Extension is IERC404ERC1155Extension, Context, ERC404 {
 
     // For batch operations on SFTs
     using Arrays for uint256[];
@@ -28,38 +28,33 @@ abstract contract ERC404WithERC1155Extension is Context, ERC404 {
     /**
     * @dev See {IERC1155-balanceOf}. added Id
     */
-    function getBalanceOf(address account, uint256 id) public view virtual returns (uint256) {
+    function getBalanceOf(address account, uint256 id) public view override returns (uint256) {
         return _balances[id][account];
     }
 
-        /// erc1155BalanceOf or balanceOfId
-    function erc1155BalanceOf(
-        address owner_,
-        uint256 id_
-    ) public view virtual returns (uint256) {
-        return getBalanceOf(owner_, id_);
-    }
-/* Override approval for all in child contract to keep the extension flexible
+
+    /// @notice tokenURI must be implemented by child contract
+    function tokenURI(uint256 id_) public view virtual returns (string memory);
+
     /// @dev override set approval for all from ERC404 to include ERC1155Event
     /// @notice Function for ERC-721 and ERC1155 approvals
     function setApprovalForAll(
         address operator_,
         bool approved_
-    ) public override {
+    ) public override(ERC404, IERC404ERC1155Extension) {
         // Prevent approvals to 0x0.
         if (operator_ == address(0)) {
             revert InvalidOperator();
         }
         isApprovedForAll[msg.sender][operator_] = approved_;
-        emit ERC721Events.ApprovalForAll(msg.sender, operator_, approved_);
         emit ERC1155Events.ApprovalForAll(msg.sender, operator_, approved_);
     }
-*/
+
 
   /*
      * @dev See {IERC1155-safeTransferFrom}. Removed error handling for gas savings
      */
-    function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes memory data) public virtual {
+    function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes memory data) public override {
         address sender = _msgSender();
         if (from != sender && !isApprovedForAll[from][msg.sender]) {
             revert InvalidOperator();
@@ -91,7 +86,7 @@ abstract contract ERC404WithERC1155Extension is Context, ERC404 {
         uint256[] memory ids,
         uint256[] memory values,
         bytes memory data
-    ) public virtual {
+    ) public override  {
         address sender = _msgSender();
         if (from != sender && !isApprovedForAll[from][sender]) {
             revert("Missing approvals");
@@ -141,7 +136,7 @@ abstract contract ERC404WithERC1155Extension is Context, ERC404 {
      *
      * NOTE: The ERC-1155 acceptance check is not performed in this function. See {_updateWithAcceptanceCheck} instead.
      */
-    function _update(address from, address to, uint256[] memory ids, uint256[] memory values) internal virtual {
+    function _update(address from, address to, uint256[] memory ids, uint256[] memory values) internal override {
         if (ids.length != values.length) {
             revert("Array lengths do not match");
         }
@@ -192,7 +187,7 @@ abstract contract ERC404WithERC1155Extension is Context, ERC404 {
         uint256[] memory ids,
         uint256[] memory values,
         bytes memory data
-    ) internal virtual {
+    ) internal override {
         _update(from, to, ids, values);
         if (to != address(0)) {
             address operator = _msgSender();

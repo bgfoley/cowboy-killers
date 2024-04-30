@@ -7,5 +7,9 @@ library ERC20Events {
         address indexed spender,
         uint256 value
     );
-    event Transfer(address indexed from, address indexed to, uint256 amount);
+    event Transfer(
+        address indexed from, 
+        address indexed to, 
+        uint256 amount
+        );
 }
