@@ -131,26 +131,24 @@ describe("ERC404", function () {
 
   async function deployMinimalERC404() {
     const signers = await ethers.getSigners()
-    const factory = await ethers.getContractFactory("MarlboroU16")
+    const factory = await ethers.getContractFactory("MinimalMarlboroU16")
 
     const name = "Example"
     const symbol = "EX-A"
     const decimals = 18n
     const units = 10n ** decimals
     const maxTotalSupplyERC721 = 100n
-    const maxTotalSupplyERC20 = maxTotalSupplyERC721 * units * 60000n
+    const maxTotalSupplyERC20 = maxTotalSupplyERC721 * units
     const initialOwner = signers[0]
     const initialMintRecipient = signers[0]
     const idPrefix =
       57896044618658097711785492504343953926634992332820282019728792003956564819968n
 
     const contract = await factory.deploy(
-        name,
-        symbol,
-        decimals,
-        maxTotalSupplyERC721,
-        initialOwner.address,
-        initialMintRecipient.address,
+      name,
+      symbol,
+      decimals,
+      initialOwner.address,
     )
     await contract.waitForDeployment()
     const contractAddress = await contract.getAddress()
@@ -286,7 +284,7 @@ describe("ERC404", function () {
     // Transfer some tokens to a non-exempted wallet to generate the NFTs.
     await f.contract
       .connect(f.signers[0])
-      .transfer(targetAddress, 3000n * f.deployConfig.units)
+      .transfer(targetAddress, 5n * f.deployConfig.units)
 
     expect(await f.contract.erc721TotalSupply()).to.equal(5n)
 
@@ -412,7 +410,7 @@ describe("ERC404", function () {
       )
 
       expect(await f.contract.erc20TotalSupply()).to.eq(
-        60000n * f.deployConfig.units,
+        100n * f.deployConfig.units,
       )
     })
   })
@@ -423,7 +421,7 @@ describe("ERC404", function () {
         deployERC404ExampleWithSomeTokensTransferredToRandomAddress,
       )
 
-      expect(await f.contract.erc721TotalSupply()).to.eq(2n)
+      expect(await f.contract.erc721TotalSupply()).to.eq(5n)
     })
   })
 
@@ -549,7 +547,7 @@ describe("ERC404", function () {
       expect(await f.contract.getERC721QueueLength()).to.equal(0n)
 
       const nftQty = 10n
-      const value = nftQty * 600n * f.deployConfig.units
+      const value = nftQty * f.deployConfig.units
 
       // Mint 10 ERC721s
       const mintTx = await f.contract
@@ -595,7 +593,7 @@ describe("ERC404", function () {
       expect(await f.contract.getERC721QueueLength()).to.equal(0n)
 
       const nftQty = 10n
-      const value = nftQty * 600n * f.deployConfig.units
+      const value = nftQty * f.deployConfig.units
 
       await f.contract
         .connect(f.signers[0])
@@ -739,7 +737,7 @@ describe("ERC404", function () {
           )
 
           // Receiver starts out with 0.9 tokens
-          const startingBalanceOfReceiver = f.deployConfig.units * 540n // 0.9 tokens
+          const startingBalanceOfReceiver = (f.deployConfig.units / 10n) * 9n // 0.9 tokens
           await f.contract
             .connect(f.from)
             .transfer(f.to.address, startingBalanceOfReceiver)
@@ -759,7 +757,7 @@ describe("ERC404", function () {
           expect(toBalancesBefore.erc721).to.equal(0n)
 
           // Transfer an amount that results in the receiver gaining a whole new token (0.9 + 0.1)
-          const fractionalValueToTransferERC20 = f.deployConfig.units / 60n // 0.1 tokens
+          const fractionalValueToTransferERC20 = f.deployConfig.units / 10n // 0.1 tokens
           await f.contract
             .connect(f.from)
             .transfer(f.to.address, fractionalValueToTransferERC20)
@@ -800,10 +798,10 @@ describe("ERC404", function () {
           )
           const toBalancesBefore = await getBalances(f.contract, f.to.address)
 
-          expect(fromBalancesBefore.erc20 / f.deployConfig.units).to.equal(60000n)
+          expect(fromBalancesBefore.erc20 / f.deployConfig.units).to.equal(100n)
 
           // Sender starts with 100 tokens and sends 0.1, resulting in the loss of 1 NFT but no NFT transfer to the receiver.
-          const initialFractionalAmount = f.deployConfig.units * 60n // 0.1 token in sub-units
+          const initialFractionalAmount = f.deployConfig.units / 10n // 0.1 token in sub-units
           const transferAmount = initialFractionalAmount * 1n // 0.1 tokens, ensuring a loss of a whole token after transfer
 
           // Perform the transfer
@@ -861,7 +859,7 @@ describe("ERC404", function () {
         // Transfer 2 whole tokens
         const erc721TokensToTransfer = 2n
         const valueToTransferERC20 =
-          erc721TokensToTransfer * f.deployConfig.units * 600n
+          erc721TokensToTransfer * f.deployConfig.units
         await f.contract
           .connect(f.from)
           .transfer(f.to.address, valueToTransferERC20)
@@ -896,7 +894,7 @@ describe("ERC404", function () {
         const f = await loadFixture(deployERC404ExampleWithTokensInSecondSigner)
 
         // Receiver starts out with 0.9 tokens
-        const startingBalanceOfReceiver = f.deployConfig.units * 540n // 0.9 tokens
+        const startingBalanceOfReceiver = (f.deployConfig.units / 10n) * 9n // 0.9 tokens
         await f.contract
           .connect(f.from)
           .transfer(f.to.address, startingBalanceOfReceiver)
@@ -916,7 +914,7 @@ describe("ERC404", function () {
         // - the receiver gaining a whole new token (0.9 + 0.2 + 3)
         // - the sender losing a partial token, dropping it below a full token (99.1 - 3.2 = 95.9)
         const fractionalValueToTransferERC20 =
-          f.deployConfig.units * 1920n // 3.2 tokens
+          (f.deployConfig.units / 10n) * 32n // 3.2 tokens
         await f.contract
           .connect(f.from)
           .transfer(f.to.address, fractionalValueToTransferERC20)
@@ -1558,16 +1556,16 @@ describe("ERC404", function () {
       // Send 1.5 tokens to address
       await f.contract
         .connect(f.signers[0])
-        .transfer(f.signers[1].address, (900n * f.deployConfig.units))
+        .transfer(f.signers[1].address, (15n * f.deployConfig.units) / 10n)
 
       // Send .5 tokens to self
       await f.contract
         .connect(f.signers[1])
-        .transfer(f.signers[1].address, (300n * f.deployConfig.units))
+        .transfer(f.signers[1].address, (5n * f.deployConfig.units) / 10n)
 
       expect(await f.contract.erc721BalanceOf(f.signers[1].address)).to.eq(1n)
       expect(await f.contract.erc20BalanceOf(f.signers[1].address)).to.eq(
-        (900n * f.deployConfig.units),
+        (15n * f.deployConfig.units) / 10n,
       )
     })
 
@@ -1582,7 +1580,7 @@ describe("ERC404", function () {
       // Send 1 tokens to deployer
       await f.contract
        .connect(f.signers[1])
-       .transfer(f.signers[0].address, 600n * f.deployConfig.units)
+       .transfer(f.signers[0].address, 1n * f.deployConfig.units)
 
       expect(await f.contract.getERC721QueueLength()).to.eq(1)
 
@@ -1673,7 +1671,7 @@ describe("ERC404", function () {
       // Transfer 3.5 full NFT worth of tokens to that address.
       await f.contract
         .connect(f.signers[0])
-        .transfer(targetAddress, (2100n * f.deployConfig.units))
+        .transfer(targetAddress, (35n * f.deployConfig.units) / 10n)
 
       expect(await f.contract.erc721BalanceOf(targetAddress)).to.equal(3n)
 
@@ -1686,7 +1684,7 @@ describe("ERC404", function () {
       expect(await f.contract.erc721BalanceOf(targetAddress)).to.equal(0n)
       expect(await f.contract.getERC721QueueLength()).to.equal(3n)
       expect(await f.contract.erc20BalanceOf(targetAddress)).to.equal(
-        (1800n * f.deployConfig.units),
+        (35n * f.deployConfig.units) / 10n,
       )
       expect((await f.contract.getERC721TokensInQueue(0, 3))[0]).to.equal(
         f.deployConfig.idPrefix + 1n,
@@ -1701,7 +1699,7 @@ describe("ERC404", function () {
       expect(await f.contract.erc721BalanceOf(targetAddress)).to.equal(3n)
       expect(await f.contract.getERC721QueueLength()).to.equal(0n)
       expect(await f.contract.erc20BalanceOf(targetAddress)).to.equal(
-        (2100n * f.deployConfig.units),
+        (35n * f.deployConfig.units) / 10n,
       )
     })
   })
@@ -1712,7 +1710,7 @@ describe("ERC404", function () {
         const f = await loadFixture(deployERC404Example)
 
         const targetAddress = f.randomAddresses[0]
-        const transferAmount = (f.deployConfig.units) * 540n // 0.9 tokens
+        const transferAmount = (f.deployConfig.units / 10n) * 9n // 0.9 tokens
 
         // Transfer 1 full NFT worth of tokens to that address.
         await f.contract
@@ -1770,7 +1768,7 @@ describe("ERC404", function () {
       const f = await loadFixture(deployERC404Example)
 
       const targetAddress = f.randomAddresses[0]
-      const transferAmount = (f.deployConfig.units) * 540n // 0.9 tokens
+      const transferAmount = (f.deployConfig.units / 10n) * 9n // 0.9 tokens
 
       expect(await f.contract.erc20BalanceOf(targetAddress)).to.equal(0n)
 
@@ -2094,7 +2092,7 @@ describe("ERC404", function () {
           spender.address,
           57896044618658097711785492504343953926634992332820282019728792003956564819967n,
           0n,
-          600000000000000000000n,
+          1000000000000000000n,
         )
 
         const permitTx = await f.contract
@@ -2103,7 +2101,7 @@ describe("ERC404", function () {
             msgSender,
             spender,
             57896044618658097711785492504343953926634992332820282019728792003956564819967n,
-            600000000000000000000n,
+            1000000000000000000n,
             sig.v,
             sig.r,
             sig.s,
@@ -2496,7 +2494,7 @@ describe("ERC404", function () {
 
       // Break apart another full token so the contract holds 2 (to test the FIFO queue)
       // Transfer 0.1 tokens to the contract from the same sender, so he now has 3.9 tokens and 3 NFTs, and the contract has 2 NFTs.
-      const fractionalValueToTransferERC20T3 = f.deployConfig.units * 60n // 0.1 tokens
+      const fractionalValueToTransferERC20T3 = f.deployConfig.units / 10n // 0.1 tokens
 
       await f.contract
         .connect(f.signers[2])
@@ -2575,7 +2573,7 @@ describe("ERC404", function () {
 
       // Transfer 0.9 ERC-20s (enough ERC-20 tokens for signer 5 to gain a full token), leaving the sender with 1.0 tokens and 1 NFT, the new recipient with 1 ERC-20 and 1 ERC-721, and the contract with 0 tokens and 1 NFTs.
       // Transfer 0.9 tokens to the recipient
-      const fractionalValueToTransferERC20T4 = f.deployConfig.units * 9n
+      const fractionalValueToTransferERC20T4 = (f.deployConfig.units / 10n) * 9n
 
       // The sender should hold 1.9 tokens and 1 NFT
       expect(await f.contract.erc20BalanceOf(f.signers[2].address)).to.equal(
@@ -2641,17 +2639,17 @@ describe("ERC404", function () {
 
       await f.contract.mintERC20(
         f.signers[1].address,
-        (30000n * f.deployConfig.units) / 10n,
+        (5n * f.deployConfig.units) / 10n,
       )
 
       expect(await f.contract.balanceOf(f.signers[1].address)).to.eq(
-        (30000n * f.deployConfig.units) / 10n,
+        (5n * f.deployConfig.units) / 10n,
       )
       expect(await f.contract.erc721BalanceOf(f.signers[1].address)).to.eq(0)
 
       await f.contract.mintERC20(
         f.signers[1].address,
-        (30000n * f.deployConfig.units) / 10n,
+        (5n * f.deployConfig.units) / 10n,
       )
 
       expect(await f.contract.balanceOf(f.signers[1].address)).to.eq(
