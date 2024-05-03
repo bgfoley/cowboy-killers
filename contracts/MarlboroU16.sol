@@ -3,13 +3,9 @@ pragma solidity ^0.8.20;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-import {Arrays} from "@openzeppelin/contracts/utils/Arrays.sol";
 import {ERC404U16} from "./ERC404U16.sol";
-import {ERC1155Events} from "./lib/ERC1155Events.sol";
-import {ERC721Events} from "./lib/ERC721Events.sol";
-import {ERC20Events} from "./lib/ERC20Events.sol";
 import {ERC404U16ERC1155Extension} from "./extensions/ERC404U16ERC1155Extension.sol";
-import {ERC404UniswapV3Exempt} from "./extensions/ERC404UniswapV3Exempt.sol";
+import {ERC404U16UniswapV3Exempt} from "./extensions/ERC404U16UniswapV3Exempt.sol";
 
 contract MarlboroU16 is
     Ownable,
@@ -17,8 +13,8 @@ contract MarlboroU16 is
     ERC404U16ERC1155Extension /* ERC404UniswapV3Exempt */
 {
     // For batch operations on SFTs
-    using Arrays for uint256[];
-    using Arrays for address[];
+  //  using Arrays for uint256[];
+  //  using Arrays for address[];
 
     uint8 private constant decimalPlaces_ = 18;
     uint256 private constant unitSize_ = 10 ** decimalPlaces_;
@@ -67,77 +63,8 @@ contract MarlboroU16 is
     }
 
 
-    /// @dev override set approval for all from ERC404 to include ERC1155Event
-    /// @notice Function for ERC-721 and ERC1155 approvals
-    function setApprovalForAll(
-        address operator_,
-        bool approved_
-    ) public override(ERC404U16, ERC404U16ERC1155Extension) {
-        // Prevent approvals to 0x0.
-        if (operator_ == address(0)) {
-            revert InvalidOperator();
-        }
-        isApprovedForAll[msg.sender][operator_] = approved_;
-        emit ERC721Events.ApprovalForAll(msg.sender, operator_, approved_);
-        emit ERC1155Events.ApprovalForAll(msg.sender, operator_, approved_);
-    }
 
-
-    /**
-     * @dev Transfers a `value` amount of tokens of type `id` from `from` to `to`. Will mint (or burn) if `from`
-     * (or `to`) is the zero address.
-     *
-     * Emits a {TransferSingle} event if the arrays contain one element, and {TransferBatch} otherwise.
-     *
-     * Requirements:
-     *
-     * - If `to` refers to a smart contract, it must implement either {IERC1155Receiver-onERC1155Received}
-     *   or {IERC1155Receiver-onERC1155BatchReceived} and return the acceptance magic value.
-     * - `ids` and `values` must have the same length.
-     *
-     * NOTE: The ERC-1155 acceptance check is not performed in this function. See {_updateWithAcceptanceCheck} instead.
-     */
-
-    function _update(
-        address from,
-        address to,
-        uint256[] memory ids,
-        uint256[] memory values
-    ) internal override {
-        if (ids.length != values.length) {
-            revert ERC1155InvalidArrayLength();
-        }
-
-        address operator = _msgSender();
-
-        for (uint256 i = 0; i < ids.length; ++i) {
-            uint256 id = ids.unsafeMemoryAccess(i);
-            uint256 value = values.unsafeMemoryAccess(i);
-
-            if (from != address(0)) {
-                uint256 fromBalance = _balances[id][from];
-                if (fromBalance < value) {
-                    revert ERC1155InsufficientBalance();
-                }
-                unchecked {
-                    // Overflow not possible: value <= fromBalance
-                    _balances[id][from] = fromBalance - value;
-                }
-            }
-
-            if (to != address(0)) {
-                _balances[id][to] += value;
-            }
-        }
-
-        if (ids.length == 1) {
-            uint256 id = ids.unsafeMemoryAccess(0);
-            uint256 value = values.unsafeMemoryAccess(0);
-            emit ERC1155Events.TransferSingle(operator, from, to, id, value);
-        } else {
-            emit ERC1155Events.TransferBatch(operator, from, to, ids, values);
-        }
-    }
+   
 
     /// @notice function to transfer ERC1155s of a given id
     /// @dev transfers ERC20 value of sfts without handling ERC721
@@ -186,7 +113,7 @@ contract MarlboroU16 is
 
     function tokenURI(
         uint256 id_
-    ) public view override(ERC404U16, ERC404U16ERC1155Extension) returns (string memory) {
+    ) public pure override(ERC404U16, ERC404U16ERC1155Extension) returns (string memory) {
         if (!_isValidTokenId(id_)) {
             revert InvalidTokenId();
         }
@@ -201,13 +128,13 @@ contract MarlboroU16 is
     }
 
 
-    function _handleNFTURI(uint256 id_) private view returns (string memory) {
+    function _handleNFTURI(uint256 id_) private pure returns (string memory) {
         string memory baseURI = "https://example.com/nfts/";
         return
             string(abi.encodePacked(baseURI, Strings.toString(id_), ".json"));
     }
 
-    function _handleSFTURI(uint256 id_) private view returns (string memory) {
+    function _handleSFTURI(uint256 id_) private pure returns (string memory) {
         string memory baseURI;
         if (id_ == _LOOSIES) {
             baseURI = "https://example.com/_LOOSIES/";
@@ -292,19 +219,6 @@ contract MarlboroU16 is
         //        _transferERC1155(from_, to_, erc20Value);
     }
 
-    function _transferERC1155(
-        address from_,
-        address to_,
-        uint256 units_
-    ) internal {
-        // Update ERC1155 balances based on unit value transfered
-        (uint256[] memory values_, uint256[] memory ids_) = calculateTokens(
-            units_
-        );
-
-        _updateWithAcceptanceCheck(from_, to_, ids_, values_, "");
-    }
-
   
     /// @notice Initialization function to set pairs / etc, saving gas by avoiding mint / burn on unnecessary targets
     /// @dev clears or reinstates all NFT balances
@@ -327,42 +241,8 @@ contract MarlboroU16 is
 
         _erc721TransferExempt[target_] = state_;
     }
-/*
-      /// @notice Function to reinstate balance on exemption removal
-    function _reinstateERC721Balance(address target_) private {
-        uint256 expectedERC721Balance = erc20BalanceOf(target_) / units;
-        uint256 actualERC721Balance = erc721BalanceOf(target_);
 
-        for (uint256 i = 0; i < expectedERC721Balance - actualERC721Balance; ) {
-            // Transfer ERC721 balance in from pool
-            _retrieveOrMintERC721(target_);
-            unchecked {
-                ++i;
-            }
-        }
-    }
-*/
 
-/*
-    /// @notice Function to clear balance on exemption inclusion
-    function _clearERC721Balance(address target_) private {
-        uint256 erc721Balance = erc721BalanceOf(target_);
-
-        for (uint256 i = 0; i < erc721Balance; ) {
-            // Transfer out ERC721 balance
-            _withdrawAndStoreERC721(target_);
-            unchecked {
-                ++i;
-            }
-        }
-    }
-*/
-/*
-    /// @notice Function to reinstate ERC1155Balance
-    function _reinstateERC1155Balance(address target_) private {
-        _updateERC1155Balances(target_);
-    }
-*/
      /// @notice Function to reinstate ERC1155Balance
     function _reinstateERC721andERC1155Balances(address target_) private {
         _updateERC1155Balances(target_);
@@ -378,14 +258,6 @@ contract MarlboroU16 is
         }
     }
     
-/*
-    /// @notice Function to clear ERC1155Balance
-    function _clearERC1155Balance(address target_) private {
-        _balances[_CARTONS][target_] = 0;
-        _balances[_PACKS][target_] = 0;
-        _balances[_LOOSIES][target_] = 0;
-    }
-*/
 
     /// @notice Function to clear ERC1155Balance
     function _clearERC721andERC1155Balances(address target_) private {
@@ -540,40 +412,4 @@ contract MarlboroU16 is
         _balances[_LOOSIES][account] = loosies;
     }
 
-    /// @dev takes a quantity of units and builds a list of tokens to mint for each value
-    /// @param _units are whole ERC20s to calculate from
-    function calculateTokens(
-        uint256 _units
-    ) internal view returns (uint256[] memory, uint256[] memory) {
-        uint256[] memory sftsToRetrieveOrMint = new uint256[](_NUM_SFT_VALUES);
-        uint256[] memory tokenValuesFiltered = new uint256[](_NUM_SFT_VALUES);
-        uint256 remainingUnits = _units % _MARLBORO_MEN;
-        uint256 count = 0;
-
-        // Calculate the number of units to retrieve or mint for each token value
-        for (uint256 i = 0; i < _NUM_SFT_VALUES; ++i) {
-            uint256 amount = remainingUnits / tokenValues[i];
-            if (amount > 0) {
-                sftsToRetrieveOrMint[count] = amount;
-                tokenValuesFiltered[count] = tokenValues[i];
-                ++count;
-            }
-            remainingUnits %= tokenValues[i];
-        }
-
-        // Resize arrays to match the count of non-zero entries
-        uint256[] memory finalNfts = new uint256[](count);
-        uint256[] memory finalTokenValues = new uint256[](count);
-        for (uint256 i = 0; i < count; ++i) {
-            finalNfts[i] = sftsToRetrieveOrMint[i];
-            finalTokenValues[i] = tokenValuesFiltered[i];
-        }
-
-        return (finalNfts, finalTokenValues);
-    }
-/*
-    function mintERC20(address account_, uint256 value_) external onlyOwner {
-        _mintERC20(account_, value_);
-    }
- */   
 }

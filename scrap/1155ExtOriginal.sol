@@ -26,7 +26,6 @@ abstract contract ERC404U16ERC1155Extension is IERC404ERC1155Extension, Context,
 
     constructor() {}
 
-
     /**
      * @dev See {IERC1155-balanceOf}. added Id
      */
@@ -41,7 +40,21 @@ abstract contract ERC404U16ERC1155Extension is IERC404ERC1155Extension, Context,
     /// @notice tokenURI must be implemented by child contract
     function tokenURI(uint256 id_) public view virtual override(ERC404U16, IERC404ERC1155Extension) returns (string memory);
 
-
+    /// @notice Function for ERC-721 and ERC1155 approvals
+    /// @dev Approved for all mapping is shared for ERC721 and ERC1155
+    ///      ERC721Events are not used here so override again in 
+    ///      your child contract to include them
+    function setApprovalForAll(
+        address operator_,
+        bool approved_
+    ) public virtual override(ERC404U16, IERC404ERC1155Extension) {
+        // Prevent approvals to 0x0.
+        if (operator_ == address(0)) {
+            revert InvalidOperator();
+        }
+        isApprovedForAll[msg.sender][operator_] = approved_;
+        emit ERC1155Events.ApprovalForAll(msg.sender, operator_, approved_);
+    }
 
     /*
      * @dev See {IERC1155-safeTransferFrom}. Removed error handling for gas savings
@@ -222,7 +235,99 @@ abstract contract ERC404U16ERC1155Extension is IERC404ERC1155Extension, Context,
         }
     }
 
-  
+    /**
+     * @dev Creates a `value` amount of tokens of type `id`, and assigns them to `to`.
+     *
+     * Emits a {TransferSingle} event.
+     *
+     * Requirements:
+     *
+     * - `to` cannot be the zero address.
+     * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155Received} and return the
+     * acceptance magic value.
+     */
+    function _mint(
+        address to,
+        uint256 id,
+        uint256 value,
+        bytes memory data
+    ) internal {
+        if (to == address(0)) {
+            revert ERC1155InvalidReceiver();
+        }
+        (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(
+            id,
+            value
+        );
+        _updateWithAcceptanceCheck(address(0), to, ids, values, data);
+    }
+
+    /**
+     * @dev xref:ROOT:erc1155.adoc#batch-operations[Batched] version of {_mint}.
+     *
+     * Emits a {TransferBatch} event.
+     *
+     * Requirements:
+     *
+     * - `ids` and `values` must have the same length.
+     * - `to` cannot be the zero address.
+     * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155BatchReceived} and return the
+     * acceptance magic value.
+     */
+    function _mintBatch(
+        address to,
+        uint256[] memory ids,
+        uint256[] memory values,
+        bytes memory data
+    ) internal {
+        if (to == address(0)) {
+            revert ERC1155InvalidReceiver();
+        }
+        _updateWithAcceptanceCheck(address(0), to, ids, values, data);
+    }
+
+    /**
+     * @dev Destroys a `value` amount of tokens of type `id` from `from`
+     *
+     * Emits a {TransferSingle} event.
+     *
+     * Requirements:
+     *
+     * - `from` cannot be the zero address.
+     * - `from` must have at least `value` amount of tokens of type `id`.
+     */
+    function _burn(address from, uint256 id, uint256 value) internal {
+        if (from == address(0)) {
+            revert ERC1155InvalidSender();
+        }
+        (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(
+            id,
+            value
+        );
+        _updateWithAcceptanceCheck(from, address(0), ids, values, "");
+    }
+
+    /**
+     * @dev xref:ROOT:erc1155.adoc#batch-operations[Batched] version of {_burn}.
+     *
+     * Emits a {TransferBatch} event.
+     *
+     * Requirements:
+     *
+     * - `from` cannot be the zero address.
+     * - `from` must have at least `value` amount of tokens of type `id`.
+     * - `ids` and `values` must have the same length.
+     */
+    function _burnBatch(
+        address from,
+        uint256[] memory ids,
+        uint256[] memory values
+    ) internal {
+        if (from == address(0)) {
+            revert ERC1155InvalidSender();
+        }
+        _updateWithAcceptanceCheck(from, address(0), ids, values, "");
+    }
 
     /**
      * @dev Performs an acceptance check by calling {IERC1155-onERC1155Received} on the `to` address

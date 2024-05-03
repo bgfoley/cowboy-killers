@@ -8,7 +8,7 @@ import {ERC1155Events} from "../lib/ERC1155Events.sol";
 import {IERC404ERC1155Extension} from "../interfaces/IERC404ERC1155Extension.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 
-abstract contract ERC404U16ERC1155Extension is IERC404ERC1155Extension, Context, ERC404U16 {
+abstract contract ERC404U16ERC1155ExtensionOG is IERC404ERC1155Extension, Context, ERC404U16 {
     
     // For batch operations on SFTs
     using Arrays for uint256[];
@@ -25,7 +25,6 @@ abstract contract ERC404U16ERC1155Extension is IERC404ERC1155Extension, Context,
     mapping(uint256 => string) internal _tokenURIs;
 
     constructor() {}
-
 
     /**
      * @dev See {IERC1155-balanceOf}. added Id
@@ -222,7 +221,99 @@ abstract contract ERC404U16ERC1155Extension is IERC404ERC1155Extension, Context,
         }
     }
 
-  
+    /**
+     * @dev Creates a `value` amount of tokens of type `id`, and assigns them to `to`.
+     *
+     * Emits a {TransferSingle} event.
+     *
+     * Requirements:
+     *
+     * - `to` cannot be the zero address.
+     * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155Received} and return the
+     * acceptance magic value.
+     */
+    function _mint(
+        address to,
+        uint256 id,
+        uint256 value,
+        bytes memory data
+    ) internal {
+        if (to == address(0)) {
+            revert ERC1155InvalidReceiver();
+        }
+        (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(
+            id,
+            value
+        );
+        _updateWithAcceptanceCheck(address(0), to, ids, values, data);
+    }
+
+    /**
+     * @dev xref:ROOT:erc1155.adoc#batch-operations[Batched] version of {_mint}.
+     *
+     * Emits a {TransferBatch} event.
+     *
+     * Requirements:
+     *
+     * - `ids` and `values` must have the same length.
+     * - `to` cannot be the zero address.
+     * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155BatchReceived} and return the
+     * acceptance magic value.
+     */
+    function _mintBatch(
+        address to,
+        uint256[] memory ids,
+        uint256[] memory values,
+        bytes memory data
+    ) internal {
+        if (to == address(0)) {
+            revert ERC1155InvalidReceiver();
+        }
+        _updateWithAcceptanceCheck(address(0), to, ids, values, data);
+    }
+
+    /**
+     * @dev Destroys a `value` amount of tokens of type `id` from `from`
+     *
+     * Emits a {TransferSingle} event.
+     *
+     * Requirements:
+     *
+     * - `from` cannot be the zero address.
+     * - `from` must have at least `value` amount of tokens of type `id`.
+     */
+    function _burn(address from, uint256 id, uint256 value) internal {
+        if (from == address(0)) {
+            revert ERC1155InvalidSender();
+        }
+        (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(
+            id,
+            value
+        );
+        _updateWithAcceptanceCheck(from, address(0), ids, values, "");
+    }
+
+    /**
+     * @dev xref:ROOT:erc1155.adoc#batch-operations[Batched] version of {_burn}.
+     *
+     * Emits a {TransferBatch} event.
+     *
+     * Requirements:
+     *
+     * - `from` cannot be the zero address.
+     * - `from` must have at least `value` amount of tokens of type `id`.
+     * - `ids` and `values` must have the same length.
+     */
+    function _burnBatch(
+        address from,
+        uint256[] memory ids,
+        uint256[] memory values
+    ) internal {
+        if (from == address(0)) {
+            revert ERC1155InvalidSender();
+        }
+        _updateWithAcceptanceCheck(from, address(0), ids, values, "");
+    }
 
     /**
      * @dev Performs an acceptance check by calling {IERC1155-onERC1155Received} on the `to` address
