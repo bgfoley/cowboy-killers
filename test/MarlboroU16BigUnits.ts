@@ -11,7 +11,7 @@ describe("ERC404", function () {
     const symbol = "EX-A"
     const decimals = 18n
     const units = 1000n * 10n ** decimals
-    const maxTotalSupplyERC721 = 100n
+    const maxTotalSupplyERC721 = 1000n
     const maxTotalSupplyERC20 = maxTotalSupplyERC721 * units
     const initialOwner = signers[0]
     const initialMintRecipient = signers[0]
@@ -19,12 +19,12 @@ describe("ERC404", function () {
       57896044618658097711785492504343953926634992332820282019728792003956564819968n
 
     const contract = await factory.deploy(
-      name,
-      symbol,
-      decimals,
-      maxTotalSupplyERC721,
-      initialOwner.address,
-      initialMintRecipient.address,
+   //   name,
+   //   symbol,
+   //   decimals,
+   //   maxTotalSupplyERC721,
+   //   initialOwner.address,
+   //   initialMintRecipient.address,
     )
     await contract.waitForDeployment()
     const contractAddress = await contract.getAddress()
@@ -131,13 +131,13 @@ describe("ERC404", function () {
 
   async function deployMinimalERC404() {
     const signers = await ethers.getSigners()
-    const factory = await ethers.getContractFactory("MinimalMarlboroU16")
+    const factory = await ethers.getContractFactory("MinimalMarlboroU16BigUnits")
 
     const name = "Example"
     const symbol = "EX-A"
     const decimals = 18n
-    const units = 1000n * 10n ** decimals
-    const maxTotalSupplyERC721 = 100n
+    const units = 10n ** decimals
+    const maxTotalSupplyERC721 = 1000n
     const maxTotalSupplyERC20 = maxTotalSupplyERC721 * units
     const initialOwner = signers[0]
     const initialMintRecipient = signers[0]
@@ -145,10 +145,10 @@ describe("ERC404", function () {
       57896044618658097711785492504343953926634992332820282019728792003956564819968n
 
     const contract = await factory.deploy(
-      name,
-      symbol,
-      decimals,
-      initialOwner.address,
+    //  name,
+    //  symbol,
+    //  decimals,
+    //  initialOwner.address,
     )
     await contract.waitForDeployment()
     const contractAddress = await contract.getAddress()

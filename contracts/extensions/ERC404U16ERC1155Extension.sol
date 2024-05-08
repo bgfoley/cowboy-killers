@@ -10,7 +10,7 @@ import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 
 abstract contract ERC404U16ERC1155Extension is IERC404ERC1155Extension, Context, ERC404U16 {
     
-    // For batch operations on SFTs
+    // For batch operations on ERC1155s
     using Arrays for uint256[];
     using Arrays for address[];
 

@@ -10,7 +10,7 @@ import {ERC20Events} from "./lib/ERC20Events.sol";
 
 /// @dev This is an optimized ERC404 implementation designed to support smaller collections,
 ///      with id's up to a maximum of 65535.
-abstract contract ERC404U16 is IERC404 {
+abstract contract ERC404U16OG is IERC404 {
     using PackedDoubleEndedQueue for PackedDoubleEndedQueue.Uint16Deque;
 
     /// @dev The queue of ERC-721 tokens stored in the contract.
@@ -83,7 +83,7 @@ abstract contract ERC404U16 is IERC404 {
         }
 
         decimals = decimals_;
-        units = 1000 * 10 ** decimals;
+        units = 10 ** decimals;
 
         // EIP-2612 initialization
         _INITIAL_CHAIN_ID = block.chainid;

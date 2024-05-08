@@ -13,7 +13,7 @@ contract MinimalMarlboroU16 is
     ERC404U16ERC1155Extension /* ERC404UniswapV3Exempt */
 {
   uint8 private constant DECIMAL_PLACES = 18;
-    uint256 private constant UNIT_SIZE = 10 ** DECIMAL_PLACES;
+    uint256 private constant UNIT_SIZE = 1000 * 10 ** DECIMAL_PLACES;
 
     /// @dev set token values constant for efficiency
     /// NFTs represented as native units 

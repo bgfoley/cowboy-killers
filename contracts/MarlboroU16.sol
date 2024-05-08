@@ -15,7 +15,7 @@ contract MarlboroU16 is
 
     /// @dev set token values constant for efficiency
     /// NFTs represented as native units 
-    uint256 private constant _MARLBORO_MEN = 10 ** 18;
+    uint256 private constant _MARLBORO_MEN = 1000 * 10 ** 18;
     
     // ERC1155 token values in ERC20 representation for updating ERC1155 balances
     uint256 private constant _CARTONS = _MARLBORO_MEN / 5; // 5 Cartons per Marlboro Man

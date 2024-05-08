@@ -7,16 +7,12 @@ import {ERC404U16} from "./ERC404U16.sol";
 import {ERC404U16ERC1155Extension} from "./extensions/ERC404U16ERC1155Extension.sol";
 import {ERC404U16UniswapV3Exempt} from "./extensions/ERC404U16UniswapV3Exempt.sol";
 
-contract MarlboroU16S is
+contract MarlboroU16OG is
     Ownable,
     ERC404U16,
-    ERC404U16ERC1155Extension,
-    ERC404U16UniswapV3Exempt
+    ERC404U16ERC1155Extension /* ERC404UniswapV3Exempt */
 {
 
-    /// @dev base token URI
-    string private baseURI;
-    
     /// @dev set token values constant for efficiency
     /// NFTs represented as native units 
     uint256 private constant _MARLBORO_MEN = 10 ** 18;
@@ -27,38 +23,37 @@ contract MarlboroU16S is
     uint256 private constant _LOOSIES = _PACKS / 20; // 20 Cigarettes per Pack
 
     // ERC1155 token IDs stored by the number of cigarettes represented per token
-    uint256 private constant CARTONS = 200;
-    uint256 private constant PACKS = 20;
-    uint256 private constant LOOSIES = 1;
-
-    string private constant NAME = "Marlbro";
-    string private constant SYMBOL = "MBRO";
-    uint8 private constant DECIMALS = 18;
-    
-    uint256 private MAX_TOTAL_SUPPLY_ERC721 = 1000;
-    // Arbitrum sepolia
-    address private UNISWAP_SWAP_ROUTER = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
-    address private NON_FUNGIBLE_POSITION_MANAGER = 0x6b2937Bde17889EDCf8fbD8dE31C3C2a70Bc4d65; 
+    uint256 public constant CARTONS = 200;
+    uint256 public constant PACKS = 20;
+    uint256 public constant LOOSIES = 1;
 
 
     /// @notice tokenValues is an index of token values
     /// @dev token value index needs to be in descending order, largest to smallest for calculations to work
     uint256[3] public tokenValues = [_CARTONS, _PACKS, _LOOSIES];
 
-    constructor()
-        ERC404U16(NAME, SYMBOL, DECIMALS)
-        Ownable(msg.sender)
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        uint8 decimals_,
+        uint256 maxTotalSupplyERC721_,
+        address initialOwner_,
+        address initialMintRecipient_
+    )
+        //  address uniswapSwapRouter_
+        //  address uniswapV3NonfungiblePositionManager_
+        ERC404U16(name_, symbol_, decimals_)
+        Ownable(initialOwner_)
         ERC404U16ERC1155Extension()
-        ERC404U16UniswapV3Exempt(
-            UNISWAP_SWAP_ROUTER,
-            NON_FUNGIBLE_POSITION_MANAGER 
-        )  
+    /*   ERC404UniswapV3Exempt(
+            uniswapSwapRouter_,
+            uniswapV3NonfungiblePositionManager_ 
+        )  */
     {
         // Do not mint the ERC721s to the initial owner, as it's a waste of gas.
-        _setERC721TransferExempt(owner(), true);
-        _mintERC20(owner(), MAX_TOTAL_SUPPLY_ERC721 * units);
+        _setERC721TransferExempt(initialMintRecipient_, true);
+        _mintERC20(initialMintRecipient_, maxTotalSupplyERC721_ * units);
     }
-
 
     function setERC721TransferExempt(
         address account_,
@@ -66,6 +61,8 @@ contract MarlboroU16S is
     ) external onlyOwner {
         _setERC721TransferExempt(account_, value_);
     }
+
+
 
    
 
@@ -114,19 +111,12 @@ contract MarlboroU16S is
     }
 
 
-    function setTokenURI(string memory _tokenURI) public onlyOwner {
-        baseURI = _tokenURI;
-    }
-
-
     function tokenURI(
         uint256 id_
-    ) public view override(ERC404U16, ERC404U16ERC1155Extension) returns (string memory) {
-        // Check if the id is valid either as an NFT ID or an SFT ID
-        if (!_isValidTokenId(id_) && !_isValidERC1155Id(id_)) {
+    ) public pure override(ERC404U16, ERC404U16ERC1155Extension) returns (string memory) {
+        if (!_isValidTokenId(id_)) {
             revert InvalidTokenId();
         }
-        
         // Determine if it's a NFT or SFT based on prefix
         if (id_ > ID_ENCODING_PREFIX) {
             // Handling NFTs
@@ -138,20 +128,23 @@ contract MarlboroU16S is
     }
 
 
-    function _isValidERC1155Id(uint256 id_) public pure returns (bool) {
-        return id_ == LOOSIES || id_ == PACKS || id_ == CARTONS;
+    function _handleNFTURI(uint256 id_) private pure returns (string memory) {
+        string memory baseURI = "https://example.com/nfts/";
+        return
+            string(abi.encodePacked(baseURI, Strings.toString(id_), ".json"));
     }
 
-
-
-    function _handleNFTURI(uint256 id_) private view returns (string memory) {
-     //   string memory baseURI = "https://example.com/nfts/";
-        uint256 adjustedId = id_ - ID_ENCODING_PREFIX;
-
-        return string(abi.encodePacked(baseURI, Strings.toString(adjustedId), ".json"));
-    }
-
-    function _handleSFTURI(uint256 id_) private view returns (string memory) {
+    function _handleSFTURI(uint256 id_) private pure returns (string memory) {
+        string memory baseURI;
+        if (id_ == LOOSIES) {
+            baseURI = "https://example.com/LOOSIES/";
+        } else if (id_ == PACKS) {
+            baseURI = "https://example.com/PACKS/";
+        } else if (id_ == CARTONS) {
+            baseURI = "https://example.com/CARTONS/";
+        } else {
+            revert InvalidTokenId();
+        }
 
         return
             string(abi.encodePacked(baseURI, Strings.toString(id_), ".json"));
@@ -171,8 +164,62 @@ contract MarlboroU16S is
         return result;
     }
 
+    /// @notice Function for self-exemption
+    /// @dev setting ERC721 AND ERC1155 Transfer exempt
+    function setSelfERC721TransferExempt(bool state_) public override {
+        _setERC721TransferExempt(msg.sender, state_);
+    }
 
 
+    /// @notice Function for ERC-721 transfers from.
+    /// @dev This function is recommended for ERC721 transfers.
+    /// Override accounts for token value for update ERC20 ballance
+    function erc721TransferFrom(
+        address from_,
+        address to_,
+        uint256 id_
+    ) public override {
+        // Prevent minting tokens from 0x0.
+        if (from_ == address(0)) {
+            revert InvalidSender();
+        }
+
+        // Prevent burning tokens to 0x0.
+        if (to_ == address(0)) {
+            revert InvalidRecipient();
+        }
+
+        if (from_ != _getOwnerOf(id_)) {
+            revert Unauthorized();
+        }
+
+        // Check that the operator is either the sender or approved for the transfer.
+        if (
+            msg.sender != from_ &&
+            !isApprovedForAll[from_][msg.sender] &&
+            msg.sender != getApproved[id_]
+        ) {
+            revert Unauthorized();
+        }
+
+        // We only need to check ERC-721 transfer exempt status for the recipient
+        // since the sender being ERC-721 transfer exempt means they have already
+        // had their ERC-721s stripped away during the rebalancing process.
+        if (erc721TransferExempt(to_)) {
+            revert RecipientIsERC721TransferExempt();
+        }
+
+        // Transfer 1 * units * value ERC-20 and 1 ERC-721 token.
+        // ERC-721 transfer exemptions handled above. Can't make it to this point if either is transfer exempt.
+        uint256 erc20Value = units;
+        _transferERC20(from_, to_, erc20Value);
+        _transferERC721(from_, to_, id_);
+        // In this context there is no need to handle SFT transfers, since the transfer of a single NFT
+        // is inherently an "exact change" transfer
+        //        _transferERC1155(from_, to_, erc20Value);
+    }
+
+  
     /// @notice Initialization function to set pairs / etc, saving gas by avoiding mint / burn on unnecessary targets
     /// @dev clears or reinstates all NFT balances
     function _setERC721TransferExempt(
@@ -257,7 +304,7 @@ contract MarlboroU16S is
             //         from the bank/minted for any whole number increase in their balance.
 
             // Only cares about whole number increments.
-            uint256 nftsToRetrieveOrMint = (ERC404U16.erc20BalanceOf(to_) / units) -
+            uint256 nftsToRetrieveOrMint = (balanceOf[to_] / units) -
                 (erc20BalanceOfReceiverBefore / units);
 
             for (uint256 i = 0; i < nftsToRetrieveOrMint; ) {
@@ -276,7 +323,7 @@ contract MarlboroU16S is
             // Only cares about whole number increments.
 
             uint256 nftsToWithdrawAndStore = (erc20BalanceOfSenderBefore /
-                units) - (ERC404U16.erc20BalanceOf(from_) / units);
+                units) - (balanceOf[from_] / units);
 
             for (uint256 i = 0; i < nftsToWithdrawAndStore; ) {
                 _withdrawAndStoreERC721(from_);
