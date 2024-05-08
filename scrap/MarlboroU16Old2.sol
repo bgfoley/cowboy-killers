@@ -13,19 +13,20 @@ contract MarlboroU16 is
     ERC404U16ERC1155Extension /* ERC404UniswapV3Exempt */
 {
 
+    uint8 private constant decimalPlaces_ = 18;
+    uint256 private constant unitSize_ = 10 ** decimalPlaces_;
+
     /// @dev set token values constant for efficiency
     /// NFTs represented as native units 
-    uint256 private constant _MARLBORO_MEN = 10 ** 18;
+    uint256 private constant _MARLBORO_MEN = unitSize_;
     
-    // ERC1155 token values in ERC20 representation for updating ERC1155 balances
-    uint256 private constant _CARTONS = _MARLBORO_MEN / 5; // 5 Cartons per Marlboro Man
-    uint256 private constant _PACKS = _CARTONS / 10; // 10 Packs per Carton
-    uint256 private constant _LOOSIES = _PACKS / 20; // 20 Cigarettes per Pack
+    // ERC1155 token values
+    uint256 private constant _CARTONS = _MARLBORO_MEN / 5;
+    uint256 private constant _PACKS = _CARTONS / 10;  
+    uint256 private constant _LOOSIES = _PACKS / 20;
 
-    // ERC1155 token IDs stored by the number of cigarettes represented per token
-    uint256 public constant CARTONS = 200;
-    uint256 public constant PACKS = 20;
-    uint256 public constant LOOSIES = 1;
+    // ERC1155 token IDs
+    uint256 private constant
 
 
     /// @notice tokenValues is an index of token values
@@ -67,7 +68,7 @@ contract MarlboroU16 is
    
 
     /// @notice function to transfer ERC1155s of a given id
-    /// @dev transfers ERC20 value of ERC1155s without handling ERC721
+    /// @dev transfers ERC20 value of sfts without handling ERC721
 
     function safeTransferFrom(
         address from,
@@ -83,7 +84,7 @@ contract MarlboroU16 is
 
         _safeTransferFrom(from, to, id, value, data);
 
-        // Calculate ERC20 value of ERC1155s being transferred and bypass ERC721 transfer path
+        // Calculate ERC20 value of sfts being transferred and bypass ERC721 transfer path
         // So that the SFTs are not implicitly converted to NFTs
         uint256 amount = id * value * units;
         _transferERC20(from, to, amount);
@@ -136,12 +137,12 @@ contract MarlboroU16 is
 
     function _handleSFTURI(uint256 id_) private pure returns (string memory) {
         string memory baseURI;
-        if (id_ == LOOSIES) {
-            baseURI = "https://example.com/LOOSIES/";
-        } else if (id_ == PACKS) {
-            baseURI = "https://example.com/PACKS/";
-        } else if (id_ == CARTONS) {
-            baseURI = "https://example.com/CARTONS/";
+        if (id_ == _LOOSIES) {
+            baseURI = "https://example.com/_LOOSIES/";
+        } else if (id_ == _PACKS) {
+            baseURI = "https://example.com/_PACKS/";
+        } else if (id_ == _CARTONS) {
+            baseURI = "https://example.com/_CARTONS/";
         } else {
             revert InvalidTokenId();
         }
@@ -153,10 +154,10 @@ contract MarlboroU16 is
     function _sumProductsOfArrayValues(
         uint256[] memory ids,
         uint256[] memory values
-    ) internal view returns (uint256) {
+    ) internal pure returns (uint256) {
         uint256 result = 0;
         for (uint256 i = 0; i < ids.length; ) {
-            result += tokenValues[i] * values[i];
+            result += ids[i] * values[i];
             unchecked {
                 ++i;
             }
@@ -262,9 +263,9 @@ contract MarlboroU16 is
     /// @notice Function to clear ERC1155Balance
     function _clearERC721andERC1155Balances(address target_) private {
         // clear ERC1155s
-        _balances[CARTONS][target_] = 0;
-        _balances[PACKS][target_] = 0;
-        _balances[LOOSIES][target_] = 0;
+        _balances[_CARTONS][target_] = 0;
+        _balances[_PACKS][target_] = 0;
+        _balances[_LOOSIES][target_] = 0;
         
         // clear ERC721s
         uint256 erc721Balance = erc721BalanceOf(target_);
@@ -393,12 +394,13 @@ contract MarlboroU16 is
         return true;
     }
 
-    /// @notice function to update ERC1155 balances for an account
+    /// @notice function to update sfts balances for an account
     /// @dev skips the _update function and calculateTokens logic used
-    ///     for direct ERC1155 transfers, to save gas
+    ///     for direct sft transfers, to save gas
 
     function _updateERC1155Balances(address account) private {
-        uint256 remainder = erc20BalanceOf(account) % _MARLBORO_MEN;
+        uint256 units_ = erc20BalanceOf(account) / units;
+        uint256 remainder = units_ % _MARLBORO_MEN;
         uint256 cartons = remainder / _CARTONS;
         remainder = remainder % _CARTONS;
         uint256 packs = remainder / _PACKS;
@@ -406,9 +408,9 @@ contract MarlboroU16 is
         uint256 loosies = remainder / _LOOSIES;
 
         // Update account balances
-        _balances[CARTONS][account] = cartons;
-        _balances[PACKS][account] = packs;
-        _balances[LOOSIES][account] = loosies;
+        _balances[_CARTONS][account] = cartons;
+        _balances[_PACKS][account] = packs;
+        _balances[_LOOSIES][account] = loosies;
     }
 
 }

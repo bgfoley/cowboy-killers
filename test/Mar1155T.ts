@@ -11,7 +11,7 @@ describe("ERC404", function () {
     const name = "Example";
     const symbol = "EX-A";
     const decimals = 18;
-    const units = 10n ** decimals
+    const units = 10n * decimals
     const maxTotalSupplyERC721 = 100n;
     const maxTotalSupplyERC20 = maxTotalSupplyERC721 * units;
     const initialOwner = signers[0];

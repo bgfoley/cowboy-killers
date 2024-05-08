@@ -7,12 +7,16 @@ import {ERC404U16} from "./ERC404U16.sol";
 import {ERC404U16ERC1155Extension} from "./extensions/ERC404U16ERC1155Extension.sol";
 import {ERC404U16UniswapV3Exempt} from "./extensions/ERC404U16UniswapV3Exempt.sol";
 
-contract MarlboroU16 is
+contract MarlboroU16S is
     Ownable,
     ERC404U16,
-    ERC404U16ERC1155Extension /* ERC404UniswapV3Exempt */
+    ERC404U16ERC1155Extension,
+    ERC404U16UniswapV3Exempt
 {
 
+    /// @dev base token URI
+    string private baseURI;
+    
     /// @dev set token values constant for efficiency
     /// NFTs represented as native units 
     uint256 private constant _MARLBORO_MEN = 10 ** 18;
@@ -23,37 +27,38 @@ contract MarlboroU16 is
     uint256 private constant _LOOSIES = _PACKS / 20; // 20 Cigarettes per Pack
 
     // ERC1155 token IDs stored by the number of cigarettes represented per token
-    uint256 public constant CARTONS = 200;
-    uint256 public constant PACKS = 20;
-    uint256 public constant LOOSIES = 1;
+    uint256 private constant CARTONS = 200;
+    uint256 private constant PACKS = 20;
+    uint256 private constant LOOSIES = 1;
+
+    string private constant NAME = "Marlbro";
+    string private constant SYMBOL = "MBRO";
+    uint8 private constant DECIMALS = 18;
+    
+    uint256 private MAX_TOTAL_SUPPLY_ERC721 = 1000;
+    // Arbitrum sepolia
+    address private UNISWAP_SWAP_ROUTER = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
+    address private NON_FUNGIBLE_POSITION_MANAGER = 0x6b2937Bde17889EDCf8fbD8dE31C3C2a70Bc4d65; 
 
 
     /// @notice tokenValues is an index of token values
     /// @dev token value index needs to be in descending order, largest to smallest for calculations to work
     uint256[3] public tokenValues = [_CARTONS, _PACKS, _LOOSIES];
 
-    constructor(
-        string memory name_,
-        string memory symbol_,
-        uint8 decimals_,
-        uint256 maxTotalSupplyERC721_,
-        address initialOwner_,
-        address initialMintRecipient_
-    )
-        //  address uniswapSwapRouter_
-        //  address uniswapV3NonfungiblePositionManager_
-        ERC404U16(name_, symbol_, decimals_)
-        Ownable(initialOwner_)
+    constructor()
+        ERC404U16(NAME, SYMBOL, DECIMALS)
+        Ownable(msg.sender)
         ERC404U16ERC1155Extension()
-    /*   ERC404UniswapV3Exempt(
-            uniswapSwapRouter_,
-            uniswapV3NonfungiblePositionManager_ 
-        )  */
+        ERC404U16UniswapV3Exempt(
+            UNISWAP_SWAP_ROUTER,
+            NON_FUNGIBLE_POSITION_MANAGER 
+        )  
     {
         // Do not mint the ERC721s to the initial owner, as it's a waste of gas.
-        _setERC721TransferExempt(initialMintRecipient_, true);
-        _mintERC20(initialMintRecipient_, maxTotalSupplyERC721_ * units);
+        _setERC721TransferExempt(owner(), true);
+        _mintERC20(owner(), MAX_TOTAL_SUPPLY_ERC721 * units);
     }
+
 
     function setERC721TransferExempt(
         address account_,
@@ -61,8 +66,6 @@ contract MarlboroU16 is
     ) external onlyOwner {
         _setERC721TransferExempt(account_, value_);
     }
-
-
 
    
 
@@ -111,12 +114,19 @@ contract MarlboroU16 is
     }
 
 
+    function setTokenURI(string memory _tokenURI) public onlyOwner {
+        baseURI = _tokenURI;
+    }
+
+
     function tokenURI(
         uint256 id_
-    ) public pure override(ERC404U16, ERC404U16ERC1155Extension) returns (string memory) {
-        if (!_isValidTokenId(id_)) {
+    ) public view override(ERC404U16, ERC404U16ERC1155Extension) returns (string memory) {
+        // Check if the id is valid either as an NFT ID or an SFT ID
+        if (!_isValidTokenId(id_) && !_isValidERC1155Id(id_)) {
             revert InvalidTokenId();
         }
+        
         // Determine if it's a NFT or SFT based on prefix
         if (id_ > ID_ENCODING_PREFIX) {
             // Handling NFTs
@@ -128,23 +138,20 @@ contract MarlboroU16 is
     }
 
 
-    function _handleNFTURI(uint256 id_) private pure returns (string memory) {
-        string memory baseURI = "https://example.com/nfts/";
-        return
-            string(abi.encodePacked(baseURI, Strings.toString(id_), ".json"));
+    function _isValidERC1155Id(uint256 id_) public pure returns (bool) {
+        return id_ == LOOSIES || id_ == PACKS || id_ == CARTONS;
     }
 
-    function _handleSFTURI(uint256 id_) private pure returns (string memory) {
-        string memory baseURI;
-        if (id_ == LOOSIES) {
-            baseURI = "https://example.com/LOOSIES/";
-        } else if (id_ == PACKS) {
-            baseURI = "https://example.com/PACKS/";
-        } else if (id_ == CARTONS) {
-            baseURI = "https://example.com/CARTONS/";
-        } else {
-            revert InvalidTokenId();
-        }
+
+
+    function _handleNFTURI(uint256 id_) private view returns (string memory) {
+     //   string memory baseURI = "https://example.com/nfts/";
+        uint256 adjustedId = id_ - ID_ENCODING_PREFIX;
+
+        return string(abi.encodePacked(baseURI, Strings.toString(adjustedId), ".json"));
+    }
+
+    function _handleSFTURI(uint256 id_) private view returns (string memory) {
 
         return
             string(abi.encodePacked(baseURI, Strings.toString(id_), ".json"));
@@ -304,7 +311,7 @@ contract MarlboroU16 is
             //         from the bank/minted for any whole number increase in their balance.
 
             // Only cares about whole number increments.
-            uint256 nftsToRetrieveOrMint = (balanceOf[to_] / units) -
+            uint256 nftsToRetrieveOrMint = (ERC404U16.erc20BalanceOf(to_) / units) -
                 (erc20BalanceOfReceiverBefore / units);
 
             for (uint256 i = 0; i < nftsToRetrieveOrMint; ) {
@@ -323,7 +330,7 @@ contract MarlboroU16 is
             // Only cares about whole number increments.
 
             uint256 nftsToWithdrawAndStore = (erc20BalanceOfSenderBefore /
-                units) - (balanceOf[from_] / units);
+                units) - (ERC404U16.erc20BalanceOf(from_) / units);
 
             for (uint256 i = 0; i < nftsToWithdrawAndStore; ) {
                 _withdrawAndStoreERC721(from_);

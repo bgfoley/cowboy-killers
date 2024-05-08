@@ -3,19 +3,23 @@ pragma solidity ^0.8.20;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-import {ERC404U16} from "./ERC404U16.sol";
-import {ERC404U16ERC1155Extension} from "./extensions/ERC404U16ERC1155Extension.sol";
-import {ERC404U16UniswapV3Exempt} from "./extensions/ERC404U16UniswapV3Exempt.sol";
+import {ERC404U16} from "../ERC404U16.sol";
+import {ERC404U16ERC1155Extension} from "../extensions/ERC404U16ERC1155Extension.sol";
+import {ERC404U16UniswapV3Exempt} from "../extensions/ERC404U16UniswapV3Exempt.sol";
 
-contract MarlboroU16 is
+contract MarlboroU16UniV3 is
     Ownable,
     ERC404U16,
-    ERC404U16ERC1155Extension /* ERC404UniswapV3Exempt */
+    ERC404U16ERC1155Extension,
+    ERC404U16UniswapV3Exempt
 {
+
+    uint8 private constant DECIMAL_PLACES = 18;
+    uint256 private constant UNIT_SIZE = 10 ** DECIMAL_PLACES;
 
     /// @dev set token values constant for efficiency
     /// NFTs represented as native units 
-    uint256 private constant _MARLBORO_MEN = 10 ** 18;
+    uint256 private constant _MARLBORO_MEN = UNIT_SIZE;
     
     // ERC1155 token values in ERC20 representation for updating ERC1155 balances
     uint256 private constant _CARTONS = _MARLBORO_MEN / 5; // 5 Cartons per Marlboro Man
@@ -38,17 +42,18 @@ contract MarlboroU16 is
         uint8 decimals_,
         uint256 maxTotalSupplyERC721_,
         address initialOwner_,
-        address initialMintRecipient_
+        address initialMintRecipient_,
+        address uniswapSwapRouter_,
+        address uniswapV3NonfungiblePositionManager_
     )
-        //  address uniswapSwapRouter_
-        //  address uniswapV3NonfungiblePositionManager_
+        
         ERC404U16(name_, symbol_, decimals_)
         Ownable(initialOwner_)
         ERC404U16ERC1155Extension()
-    /*   ERC404UniswapV3Exempt(
+        ERC404U16UniswapV3Exempt(
             uniswapSwapRouter_,
             uniswapV3NonfungiblePositionManager_ 
-        )  */
+        )  
     {
         // Do not mint the ERC721s to the initial owner, as it's a waste of gas.
         _setERC721TransferExempt(initialMintRecipient_, true);

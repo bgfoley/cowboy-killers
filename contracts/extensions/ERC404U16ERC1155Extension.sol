@@ -14,12 +14,10 @@ abstract contract ERC404U16ERC1155Extension is IERC404ERC1155Extension, Context,
     using Arrays for uint256[];
     using Arrays for address[];
 
-    // Mappings for SFTs (like ERC1155)
+    // Mappings for ERC1155 balances
     mapping(uint256 id => mapping(address account => uint256))
         internal _balances;
 
-    // Approvals for
-    //    mapping(address account => mapping(address operator => bool)) internal _operatorApprovals;
 
     /// @dev for assigning sequential IDs for each value
     mapping(uint256 => string) internal _tokenURIs;
@@ -27,15 +25,48 @@ abstract contract ERC404U16ERC1155Extension is IERC404ERC1155Extension, Context,
     constructor() {}
 
 
-    /**
-     * @dev See {IERC1155-balanceOf}. added Id
-     */
     function getBalanceOf(
         address account,
         uint256 id
     ) public view virtual returns (uint256) {
         return _balances[id][account];
     }
+
+    // Approvals for
+    //    mapping(address account => mapping(address operator => bool)) internal _operatorApprovals;
+
+/*
+  
+    function balanceOf(address account, uint256 id) public view virtual returns (uint256) {
+        return _balances[id][account];
+    }
+*/
+    /**
+     * @dev See {IERC1155-balanceOfBatch}.
+     *
+     * Requirements:
+     *
+     * - `accounts` and `ids` must have the same length.
+     */
+    function balanceOfBatch(
+        address[] memory accounts,
+        uint256[] memory ids
+    ) public view virtual returns (uint256[] memory) {
+        if (accounts.length != ids.length) {
+            revert ERC1155InvalidArrayLength();
+        }
+
+        uint256[] memory batchBalances = new uint256[](accounts.length);
+
+        for (uint256 i = 0; i < accounts.length; ++i) {
+            batchBalances[i] = getBalanceOf(accounts.unsafeMemoryAccess(i), ids.unsafeMemoryAccess(i));
+        }
+
+        return batchBalances;
+    }
+
+
+    
 
 
     /// @notice tokenURI must be implemented by child contract

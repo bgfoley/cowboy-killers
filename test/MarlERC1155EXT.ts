@@ -15,7 +15,7 @@ describe("ERC404", function () {
     const maxTotalSupplyERC20 = maxTotalSupplyERC721 * units
     const initialOwner = signers[0]
     const initialMintRecipient = signers[0]
-    const cartons = units / 10n
+    const cartons = units / 5n
     const packs = cartons / 10n
     const loosies = packs / 20n
 
@@ -52,6 +52,7 @@ describe("ERC404", function () {
         units,
         cartons,
         packs,
+        loosies,
       },
       randomAddresses,
     }

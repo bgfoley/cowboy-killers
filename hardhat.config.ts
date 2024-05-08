@@ -1,8 +1,9 @@
-import "dotenv/config"
-import { HardhatUserConfig } from "hardhat/config"
-import "@nomicfoundation/hardhat-toolbox"
-import "hardhat-gas-reporter"
+import "dotenv/config";
+import { HardhatUserConfig } from "hardhat/config";
+import "@nomicfoundation/hardhat-toolbox";
+import "hardhat-gas-reporter";
 import "@typechain/hardhat";
+import 'hardhat-contract-sizer';  // Make sure this is imported
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -41,6 +42,12 @@ const config: HardhatUserConfig = {
   typechain: {
     outDir: "typechain",
     target: "ethers-v6",
+  },
+  contractSizer: {
+    runOnCompile: true,  // Automatically run contract-sizer after every compilation
+    strict: false,       // Set to true if you want to fail compilation when a contract exceeds 24kB
+    alphaSort: true,     // Alphabetically sort the contract names in the output
+    disambiguatePaths: false,
   },
 };
 

@@ -12,26 +12,28 @@ contract MinimalMarlboroU16 is
     ERC404U16,
     ERC404U16ERC1155Extension /* ERC404UniswapV3Exempt */
 {
-    // For batch operations on SFTs
-  //  using Arrays for uint256[];
-  //  using Arrays for address[];
-
-    uint8 private constant decimalPlaces_ = 18;
-    uint256 private constant unitSize_ = 10 ** decimalPlaces_;
+  uint8 private constant DECIMAL_PLACES = 18;
+    uint256 private constant UNIT_SIZE = 10 ** DECIMAL_PLACES;
 
     /// @dev set token values constant for efficiency
-    uint256 private constant _MARLBORO_MEN = unitSize_;
-    uint256 private constant _CARTONS = _MARLBORO_MEN / 10;
-    uint256 private constant _PACKS = _CARTONS / 10;  
-    uint256 private constant _LOOSIES = _PACKS / 20;
+    /// NFTs represented as native units 
+    uint256 private constant _MARLBORO_MEN = UNIT_SIZE;
+    
+    // ERC1155 token values in ERC20 representation for updating ERC1155 balances
+    uint256 private constant _CARTONS = _MARLBORO_MEN / 5; // 5 Cartons per Marlboro Man
+    uint256 private constant _PACKS = _CARTONS / 10; // 10 Packs per Carton
+    uint256 private constant _LOOSIES = _PACKS / 20; // 20 Cigarettes per Pack
 
-    /// @dev Does not include Marlboro Men, since this value is used to calculate SFTs.
-    uint256 private constant _NUM_SFT_VALUES = 3;
+    // ERC1155 token IDs stored by the number of cigarettes represented per token
+    uint256 public constant CARTONS = 200;
+    uint256 public constant PACKS = 20;
+    uint256 public constant LOOSIES = 1;
+
 
     /// @notice tokenValues is an index of token values
     /// @dev token value index needs to be in descending order, largest to smallest for calculations to work
-    uint256[_NUM_SFT_VALUES] public tokenValues = [_CARTONS, _PACKS, _LOOSIES];
-
+    uint256[3] public tokenValues = [_CARTONS, _PACKS, _LOOSIES];
+    
     constructor(
         string memory name_,
         string memory symbol_,
@@ -111,6 +113,7 @@ contract MinimalMarlboroU16 is
     }
 
 
+   
     function tokenURI(
         uint256 id_
     ) public pure override(ERC404U16, ERC404U16ERC1155Extension) returns (string memory) {
@@ -136,12 +139,12 @@ contract MinimalMarlboroU16 is
 
     function _handleSFTURI(uint256 id_) private pure returns (string memory) {
         string memory baseURI;
-        if (id_ == _LOOSIES) {
-            baseURI = "https://example.com/_LOOSIES/";
-        } else if (id_ == _PACKS) {
-            baseURI = "https://example.com/_PACKS/";
-        } else if (id_ == _CARTONS) {
-            baseURI = "https://example.com/_CARTONS/";
+        if (id_ == LOOSIES) {
+            baseURI = "https://example.com/LOOSIES/";
+        } else if (id_ == PACKS) {
+            baseURI = "https://example.com/PACKS/";
+        } else if (id_ == CARTONS) {
+            baseURI = "https://example.com/CARTONS/";
         } else {
             revert InvalidTokenId();
         }
@@ -153,10 +156,10 @@ contract MinimalMarlboroU16 is
     function _sumProductsOfArrayValues(
         uint256[] memory ids,
         uint256[] memory values
-    ) internal pure returns (uint256) {
+    ) internal view returns (uint256) {
         uint256 result = 0;
         for (uint256 i = 0; i < ids.length; ) {
-            result += ids[i] * values[i];
+            result += tokenValues[i] * values[i];
             unchecked {
                 ++i;
             }
@@ -219,19 +222,6 @@ contract MinimalMarlboroU16 is
         //        _transferERC1155(from_, to_, erc20Value);
     }
 
-    function _transferERC1155(
-        address from_,
-        address to_,
-        uint256 units_
-    ) internal {
-        // Update ERC1155 balances based on unit value transfered
-        (uint256[] memory values_, uint256[] memory ids_) = calculateTokens(
-            units_
-        );
-
-        _updateWithAcceptanceCheck(from_, to_, ids_, values_, "");
-    }
-
   
     /// @notice Initialization function to set pairs / etc, saving gas by avoiding mint / burn on unnecessary targets
     /// @dev clears or reinstates all NFT balances
@@ -275,9 +265,9 @@ contract MinimalMarlboroU16 is
     /// @notice Function to clear ERC1155Balance
     function _clearERC721andERC1155Balances(address target_) private {
         // clear ERC1155s
-        _balances[_CARTONS][target_] = 0;
-        _balances[_PACKS][target_] = 0;
-        _balances[_LOOSIES][target_] = 0;
+        _balances[CARTONS][target_] = 0;
+        _balances[PACKS][target_] = 0;
+        _balances[LOOSIES][target_] = 0;
         
         // clear ERC721s
         uint256 erc721Balance = erc721BalanceOf(target_);
@@ -406,13 +396,12 @@ contract MinimalMarlboroU16 is
         return true;
     }
 
-    /// @notice function to update sfts balances for an account
+    /// @notice function to update ERC1155 balances for an account
     /// @dev skips the _update function and calculateTokens logic used
-    ///     for direct sft transfers, to save gas
+    ///     for direct ERC1155 transfers, to save gas
 
     function _updateERC1155Balances(address account) private {
-        uint256 units_ = erc20BalanceOf(account) / units;
-        uint256 remainder = units_ % _MARLBORO_MEN;
+        uint256 remainder = erc20BalanceOf(account) % _MARLBORO_MEN;
         uint256 cartons = remainder / _CARTONS;
         remainder = remainder % _CARTONS;
         uint256 packs = remainder / _PACKS;
@@ -420,41 +409,9 @@ contract MinimalMarlboroU16 is
         uint256 loosies = remainder / _LOOSIES;
 
         // Update account balances
-        _balances[_CARTONS][account] = cartons;
-        _balances[_PACKS][account] = packs;
-        _balances[_LOOSIES][account] = loosies;
-    }
-
-    /// @dev takes a quantity of units and builds a list of tokens to mint for each value
-    /// @param _units are whole ERC20s to calculate from
-    function calculateTokens(
-        uint256 _units
-    ) internal view returns (uint256[] memory, uint256[] memory) {
-        uint256[] memory sftsToRetrieveOrMint = new uint256[](_NUM_SFT_VALUES);
-        uint256[] memory tokenValuesFiltered = new uint256[](_NUM_SFT_VALUES);
-        uint256 remainingUnits = _units % _MARLBORO_MEN;
-        uint256 count = 0;
-
-        // Calculate the number of units to retrieve or mint for each token value
-        for (uint256 i = 0; i < _NUM_SFT_VALUES; ++i) {
-            uint256 amount = remainingUnits / tokenValues[i];
-            if (amount > 0) {
-                sftsToRetrieveOrMint[count] = amount;
-                tokenValuesFiltered[count] = tokenValues[i];
-                ++count;
-            }
-            remainingUnits %= tokenValues[i];
-        }
-
-        // Resize arrays to match the count of non-zero entries
-        uint256[] memory finalNfts = new uint256[](count);
-        uint256[] memory finalTokenValues = new uint256[](count);
-        for (uint256 i = 0; i < count; ++i) {
-            finalNfts[i] = sftsToRetrieveOrMint[i];
-            finalTokenValues[i] = tokenValuesFiltered[i];
-        }
-
-        return (finalNfts, finalTokenValues);
+        _balances[CARTONS][account] = cartons;
+        _balances[PACKS][account] = packs;
+        _balances[LOOSIES][account] = loosies;
     }
 
   function mintERC20(address account_, uint256 value_) external onlyOwner {
