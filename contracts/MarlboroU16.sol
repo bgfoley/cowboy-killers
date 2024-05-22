@@ -23,9 +23,9 @@ contract MarlboroU16 is
     uint256 private constant _LOOSIES = _PACKS / 20; // 20 Cigarettes per Pack
 
     // ERC1155 token IDs stored by the number of cigarettes represented per token
-    uint256 public constant CARTONS = 200;
-    uint256 public constant PACKS = 20;
-    uint256 public constant LOOSIES = 1;
+    uint256 private constant CARTONS = 0;
+    uint256 private constant PACKS = 1;
+    uint256 private constant LOOSIES = 2;
 
 
     /// @notice tokenValues is an index of token values
@@ -85,7 +85,7 @@ contract MarlboroU16 is
 
         // Calculate ERC20 value of ERC1155s being transferred and bypass ERC721 transfer path
         // So that the SFTs are not implicitly converted to NFTs
-        uint256 amount = id * value * units;
+        uint256 amount = tokenValues[id] * value;
         _transferERC20(from, to, amount);
     }
 
@@ -106,8 +106,7 @@ contract MarlboroU16 is
         _safeBatchTransferFrom(from, to, ids, values, data);
 
         uint256 amount = _sumProductsOfArrayValues(ids, values);
-        uint256 amountUnits = amount * units;
-        _transferERC20(from, to, amountUnits);
+        _transferERC20(from, to, amount);
     }
 
 
@@ -170,54 +169,6 @@ contract MarlboroU16 is
         _setERC721TransferExempt(msg.sender, state_);
     }
 
-
-    /// @notice Function for ERC-721 transfers from.
-    /// @dev This function is recommended for ERC721 transfers.
-    /// Override accounts for token value for update ERC20 ballance
-    function erc721TransferFrom(
-        address from_,
-        address to_,
-        uint256 id_
-    ) public override {
-        // Prevent minting tokens from 0x0.
-        if (from_ == address(0)) {
-            revert InvalidSender();
-        }
-
-        // Prevent burning tokens to 0x0.
-        if (to_ == address(0)) {
-            revert InvalidRecipient();
-        }
-
-        if (from_ != _getOwnerOf(id_)) {
-            revert Unauthorized();
-        }
-
-        // Check that the operator is either the sender or approved for the transfer.
-        if (
-            msg.sender != from_ &&
-            !isApprovedForAll[from_][msg.sender] &&
-            msg.sender != getApproved[id_]
-        ) {
-            revert Unauthorized();
-        }
-
-        // We only need to check ERC-721 transfer exempt status for the recipient
-        // since the sender being ERC-721 transfer exempt means they have already
-        // had their ERC-721s stripped away during the rebalancing process.
-        if (erc721TransferExempt(to_)) {
-            revert RecipientIsERC721TransferExempt();
-        }
-
-        // Transfer 1 * units * value ERC-20 and 1 ERC-721 token.
-        // ERC-721 transfer exemptions handled above. Can't make it to this point if either is transfer exempt.
-        uint256 erc20Value = units;
-        _transferERC20(from_, to_, erc20Value);
-        _transferERC721(from_, to_, id_);
-        // In this context there is no need to handle SFT transfers, since the transfer of a single NFT
-        // is inherently an "exact change" transfer
-        //        _transferERC1155(from_, to_, erc20Value);
-    }
 
   
     /// @notice Initialization function to set pairs / etc, saving gas by avoiding mint / burn on unnecessary targets
@@ -411,4 +362,10 @@ contract MarlboroU16 is
         _balances[LOOSIES][account] = loosies;
     }
 
+
+    function mintERC20(address account_, uint256 value_) external onlyOwner {
+        _mintERC20(account_, value_);
+    }
+
 }
+

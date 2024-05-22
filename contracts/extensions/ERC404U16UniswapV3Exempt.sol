@@ -93,4 +93,25 @@ abstract contract ERC404U16UniswapV3Exempt is ERC404U16 {
                 )
             );
     }
+    function getUniswapV3Pairs(address uniswapV3Router_) public view returns (address[] memory) {
+        IPeripheryImmutableState uniswapV3Router = IPeripheryImmutableState(
+            uniswapV3Router_
+        );
+        
+        uint24[4] memory feeTiers = [uint24(100), uint24(500), uint24(3000), uint24(10000)];
+        address[] memory pairAddresses = new address[](feeTiers.length);
+
+        for (uint256 i = 0; i < feeTiers.length; ) {
+            pairAddresses[i] = _getUniswapV3Pair(
+                uniswapV3Router.factory(),
+                uniswapV3Router.WETH9(),
+                feeTiers[i]
+            );
+            unchecked {
+                ++i;
+            }
+        }
+        return pairAddresses; 
+    }
+
 }

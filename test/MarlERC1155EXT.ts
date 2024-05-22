@@ -83,16 +83,17 @@ describe("ERC404", function () {
       it("should revert if isApprovedForAll is false and the caller is not the owner", async function () {
       const f = await loadFixture(deployERC404Example)
         
-        const from = await .getAddress();
-        const to = await signers[0].getAddress();
-        const id =   // Using a constant value for ID
+        const contract = await f.contract;
+        const from = await f.signers[1].getAddress();
+        const to = await f.signers[2].getAddress();
+        const id =  f.deployConfig.cartons; // Using a constant value for ID
      
   
-        // Mint tokens to the owner before transfer
-        await contract.mint(from, id, value, "0x");
+        // Mint tokens to the first signer before transfer
+        await contract.mintERC20(from, id);
   
         // Try to make the transfer from a user who is not approved
-        await expect(contract.connect(randomUser).safeTransferFrom(from, to, id, value, "0x"))
+        await expect(contract.connect(to).safeTransferFrom(from, to, id, value, "0x"))
           .to.be.revertedWith("InvalidOperator");
       });
   

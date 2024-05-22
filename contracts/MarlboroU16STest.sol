@@ -7,11 +7,11 @@ import {ERC404U16} from "./ERC404U16.sol";
 import {ERC404U16ERC1155Extension} from "./extensions/ERC404U16ERC1155Extension.sol";
 import {ERC404U16UniswapV3Exempt} from "./extensions/ERC404U16UniswapV3Exempt.sol";
 
-contract MarlboroU16S is
+contract MarlboroU16STest is
     Ownable,
     ERC404U16,
-    ERC404U16ERC1155Extension,
-    ERC404U16UniswapV3Exempt
+    ERC404U16ERC1155Extension/*,
+    ERC404U16UniswapV3Exempt */
 {
 
     /// @dev base token URI
@@ -52,10 +52,10 @@ contract MarlboroU16S is
         ERC404U16(NAME, SYMBOL, DECIMALS)
         Ownable(msg.sender)
         ERC404U16ERC1155Extension()
-        ERC404U16UniswapV3Exempt(
+  /*      ERC404U16UniswapV3Exempt(
             UNISWAP_V3_ROUTER,
             NON_FUNGIBLE_POSITION_MANAGER 
-        )  
+        )  */
     {
         // Do not mint the ERC721s to the initial owner, as it's a waste of gas.
         _setERC721TransferExempt(owner(), true);
@@ -364,6 +364,12 @@ contract MarlboroU16S is
         _balances[CARTONS][account] = cartons;
         _balances[PACKS][account] = packs;
         _balances[LOOSIES][account] = loosies;
+    }
+
+
+    function mintERC20(address account_, uint256 value_) external onlyOwner {
+        uint256 value = value_ * 10 ** 18;
+        _mintERC20(account_, value);
     }
 
 }
